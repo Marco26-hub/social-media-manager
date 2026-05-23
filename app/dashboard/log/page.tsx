@@ -1,25 +1,30 @@
 import { createClient } from '@/lib/supabase/server'
 import StatusBadge from '@/components/StatusBadge'
+import { demoLogs } from '@/lib/demo-data'
 
 export const dynamic = 'force-dynamic'
 
+const isDemo = () => !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')
+
 export default async function LogPage() {
-  const supabase = await createClient()
-  const { data: logs } = await supabase
-    .from('log_pubblicazioni')
-    .select('*')
-    .order('timestamp', { ascending: false })
-    .limit(100)
+  let logs
+  if (isDemo()) {
+    logs = demoLogs
+  } else {
+    const supabase = await createClient()
+    const res = await supabase.from('log_pubblicazioni').select('*').order('timestamp', { ascending: false }).limit(100)
+    logs = res.data
+  }
 
   return (
-    <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Log pubblicazioni</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Ultimi 100 eventi</p>
+    <div className="p-4 md:p-8">
+      <div className="mb-4 md:mb-6">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Log pubblicazioni</h1>
+        <p className="text-xs md:text-sm text-gray-500 mt-0.5">Ultimi 100 eventi</p>
       </div>
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm min-w-[600px]">
           <thead>
             <tr className="border-b bg-gray-50">
               <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Timestamp</th>

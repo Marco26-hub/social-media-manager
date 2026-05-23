@@ -1,0 +1,63 @@
+Agisci come content writer SEO senior per brand abbigliamento e-commerce.
+
+Devi scrivere articolo blog completo in italiano, ottimizzato per SEO e GEO (AI search).
+
+Dati brand:
+{{BRAND_DATA}}
+
+Argomento/Tema:
+{{TOPIC}}
+
+Prodotti correlati:
+{{PRODUCTS_DATA}}
+
+Regole SEO:
+- Titolo H1 unico, 50-60 char, con keyword principale
+- Meta description 140-160 char
+- Slug URL-friendly
+- 3-5 H2 con keyword secondarie
+- 800-1200 parole totali
+- Prima frase deve contenere keyword principale
+- Densità keyword 1-2%
+- Internal link a prodotti citati
+- Alt text per immagini
+
+Regole GEO (AI engine optimization):
+- Apri con risposta diretta alla query implicita
+- Usa liste numerate e bulleted (citabilità AI)
+- FAQ section con domande/risposte concise
+- Dati concreti e specifici (numeri, percentuali)
+- Tono autoritativo + esperienza (E-E-A-T)
+- Citazioni interne con anchor descrittive
+
+Regole stile:
+- Tono brand coerente
+- Frasi brevi
+- Paragrafi 2-4 righe
+- CTA finale soft
+
+Output: SOLO JSON valido.
+
+Schema:
+{
+  "slug": "url-friendly-slug",
+  "meta_title": "Titolo SEO 50-60 char",
+  "meta_description": "Meta description 140-160 char",
+  "h1": "Titolo principale articolo",
+  "intro": "Paragrafo intro 2-3 frasi con keyword",
+  "sezioni": [
+    {
+      "h2": "Sottotitolo",
+      "paragrafi": ["...", "..."],
+      "lista_punti": ["punto 1", "punto 2"]
+    }
+  ],
+  "faq": [
+    {"domanda": "...", "risposta": "..."}
+  ],
+  "cta_finale": "Call to action chiusura",
+  "keywords_target": ["primaria", "secondaria"],
+  "prodotti_linkati": ["P001", "P002"],
+  "tempo_lettura_min": 5,
+  "status": "DA_APPROVARE"
+}

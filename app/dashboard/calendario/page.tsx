@@ -7,6 +7,10 @@ import StatusBadge from '@/components/StatusBadge'
 import type { Contenuto, Status } from '@/lib/types'
 import { CheckCircle, XCircle, RefreshCw, Eye, ChevronDown, Filter } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
+import { demoContenuti } from '@/lib/demo-data'
+import PostPreview from '@/components/PostPreview'
+
+const isDemo = () => !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')
 
 const CANALI = ['tutti','instagram','facebook','tiktok','pinterest','youtube_shorts']
 const STATI: Status[] = ['DA_APPROVARE','BOZZA','IDEA','APPROVATO','IN_PUBBLICAZIONE','PUBBLICATO','ERRORE','ERRORE_MANUALE']
@@ -30,61 +34,87 @@ function CalendarioInner() {
   const [filterStatus, setFilter]   = useState<string>(searchParams.get('filter') ?? 'DA_APPROVARE')
   const [filterCanale, setCanale]   = useState('tutti')
   const [saving, setSaving]         = useState<string | null>(null)
+  const [demoData, setDemoData]     = useState<Contenuto[]>(demoContenuti)
   const supabase = createClient()
+  const demo = isDemo()
 
   const fetchData = useCallback(async () => {
     setLoading(true)
+    if (demo) {
+      let filtered = demoData
+      if (filterStatus !== 'tutti') filtered = filtered.filter(c => c.status === filterStatus)
+      if (filterCanale !== 'tutti') filtered = filtered.filter(c => c.canale === filterCanale)
+      setContenuti(filtered)
+      setLoading(false)
+      return
+    }
     let q = supabase.from('calendario').select('*').order('data_pubblicazione', { ascending: true })
     if (filterStatus !== 'tutti') q = q.eq('status', filterStatus)
     if (filterCanale !== 'tutti') q = q.eq('canale', filterCanale)
     const { data } = await q
     setContenuti(data ?? [])
     setLoading(false)
-  }, [filterStatus, filterCanale, supabase])
+  }, [filterStatus, filterCanale, supabase, demo, demoData])
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // Realtime
+  // Realtime — skip in demo
   useEffect(() => {
+    if (demo) return
     const channel = supabase.channel('calendario-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'calendario' }, fetchData)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [fetchData, supabase])
+  }, [fetchData, supabase, demo])
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cal = () => supabase.from('calendario') as any
 
   async function approva(c: Contenuto, user: string = 'admin') {
     setSaving(c.id)
-    await cal().update({
-      status: 'APPROVATO',
-      checked_copy: 'SI', checked_media: 'SI', checked_link: 'SI',
-      approvato_da: user,
-      data_approvazione: new Date().toISOString(),
-    }).eq('id', c.id)
-    await fetchData()
+    if (demo) {
+      setDemoData(prev => prev.map(x => x.id === c.id ? {
+        ...x, status: 'APPROVATO' as Status,
+        checked_copy: 'SI', checked_media: 'SI', checked_link: 'SI',
+        approvato_da: user, data_approvazione: new Date().toISOString(),
+      } : x))
+    } else {
+      await cal().update({
+        status: 'APPROVATO',
+        checked_copy: 'SI', checked_media: 'SI', checked_link: 'SI',
+        approvato_da: user,
+        data_approvazione: new Date().toISOString(),
+      }).eq('id', c.id)
+    }
     setSelected(null)
     setSaving(null)
   }
 
   async function rifiuta(c: Contenuto) {
     setSaving(c.id)
-    await cal().update({ status: 'BOZZA' }).eq('id', c.id)
-    await fetchData()
+    if (demo) {
+      setDemoData(prev => prev.map(x => x.id === c.id ? { ...x, status: 'BOZZA' as Status } : x))
+    } else {
+      await cal().update({ status: 'BOZZA' }).eq('id', c.id)
+    }
     setSelected(null)
     setSaving(null)
   }
 
   async function resetErrore(c: Contenuto) {
     setSaving(c.id)
-    await cal().update({
-      status: 'APPROVATO',
-      errore_tecnico: null,
-      retry_count: 0,
-      publish_lock_id: null,
-    }).eq('id', c.id)
-    await fetchData()
+    if (demo) {
+      setDemoData(prev => prev.map(x => x.id === c.id ? {
+        ...x, status: 'APPROVATO' as Status, errore_tecnico: null, retry_count: 0, publish_lock_id: null,
+      } : x))
+    } else {
+      await cal().update({
+        status: 'APPROVATO',
+        errore_tecnico: null,
+        retry_count: 0,
+        publish_lock_id: null,
+      }).eq('id', c.id)
+    }
     setSaving(null)
   }
 
@@ -92,21 +122,21 @@ function CalendarioInner() {
     [c.link_media_1,c.link_media_2,c.link_media_3].filter(Boolean) as string[]
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4 md:mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Calendario</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{contenuti.length} contenuti</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Calendario</h1>
+          <p className="text-xs md:text-sm text-gray-500 mt-0.5">{contenuti.length} contenuti</p>
         </div>
-        <button onClick={fetchData} className="btn-secondary">
+        <button onClick={fetchData} className="btn-secondary py-1.5 px-3">
           <RefreshCw className="w-4 h-4" />
-          Aggiorna
+          <span className="hidden md:inline">Aggiorna</span>
         </button>
       </div>
 
       {/* Filtri */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="flex flex-wrap gap-2 md:gap-3 mb-4 md:mb-6">
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-gray-400" />
           <span className="text-sm text-gray-500">Status:</span>
@@ -149,8 +179,8 @@ function CalendarioInner() {
       ) : (
         <div className="space-y-3">
           {contenuti.map(c => (
-            <div key={c.id} className="card p-4 hover:shadow-md transition-shadow">
-              <div className="flex items-start gap-4">
+            <div key={c.id} className="card p-3 md:p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-start gap-3 md:gap-4">
                 {/* Media thumb */}
                 <div className="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden">
                   {c.link_media_1 ? (
@@ -186,25 +216,25 @@ function CalendarioInner() {
                 </div>
 
                 {/* Azioni */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button onClick={() => setSelected(c)} className="btn-secondary py-1.5 px-3">
+                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-1.5 md:gap-2 flex-shrink-0">
+                  <button onClick={() => setSelected(c)} className="btn-secondary py-1.5 px-2 md:px-3 justify-center">
                     <Eye className="w-3.5 h-3.5" />
                   </button>
                   {c.status === 'DA_APPROVARE' && (
                     <>
-                      <button onClick={() => approva(c)} disabled={saving === c.id} className="btn-primary py-1.5 px-3">
+                      <button onClick={() => approva(c)} disabled={saving === c.id} className="btn-primary py-1.5 px-2 md:px-3 justify-center">
                         <CheckCircle className="w-3.5 h-3.5" />
-                        {saving === c.id ? '...' : 'Approva'}
+                        <span className="hidden md:inline">{saving === c.id ? '...' : 'Approva'}</span>
                       </button>
-                      <button onClick={() => rifiuta(c)} disabled={saving === c.id} className="btn-danger py-1.5 px-3">
+                      <button onClick={() => rifiuta(c)} disabled={saving === c.id} className="btn-danger py-1.5 px-2 md:px-3 justify-center">
                         <XCircle className="w-3.5 h-3.5" />
                       </button>
                     </>
                   )}
                   {(c.status === 'ERRORE' || c.status === 'ERRORE_MANUALE') && (
-                    <button onClick={() => resetErrore(c)} disabled={saving === c.id} className="btn-secondary py-1.5 px-3">
+                    <button onClick={() => resetErrore(c)} disabled={saving === c.id} className="btn-secondary py-1.5 px-2 md:px-3 justify-center">
                       <RefreshCw className={`w-3.5 h-3.5 ${saving === c.id ? 'animate-spin' : ''}`} />
-                      Riprova
+                      <span className="hidden md:inline">Riprova</span>
                     </button>
                   )}
                 </div>
@@ -228,15 +258,11 @@ function CalendarioInner() {
               </button>
             </div>
             <div className="p-6 space-y-4">
-              {/* Media */}
-              {mediaUrls(selected).length > 0 && (
-                <div className="flex gap-2">
-                  {mediaUrls(selected).map((url, i) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img key={i} src={url} alt="" className="w-24 h-24 object-cover rounded-lg border" />
-                  ))}
-                </div>
-              )}
+              {/* Anteprima visuale post */}
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 -mx-6 -mt-6 px-6 py-6 border-b">
+                <p className="label mb-3">Anteprima {selected.canale}</p>
+                <PostPreview c={selected} />
+              </div>
 
               {/* Contenuto */}
               {selected.hook && (

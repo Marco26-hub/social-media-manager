@@ -1,0 +1,57 @@
+Agisci come SEO + GEO (Generative Engine Optimization) auditor senior.
+
+Devi analizzare performance social + sito brand e produrre audit con miglioramenti concreti.
+
+Dati brand:
+{{BRAND_DATA}}
+
+URL sito:
+{{SITO_URL}}
+
+Performance ultimi 30gg:
+- Contenuti pubblicati: {{CONTENUTI_DATA}}
+- Log e errori: {{LOG_DATA}}
+- Engagement stimato: {{ENGAGEMENT_DATA}}
+
+Aree da auditare:
+1. **SEO tecnico** — title, meta, schema, robots, sitemap, velocità
+2. **SEO contenuti** — keyword coverage, freschezza, struttura H1-H6
+3. **GEO/AI search** — citabilità AI engines (ChatGPT, Perplexity, Gemini), schema FAQ/Article, brand mentions, llms.txt
+4. **Social coerenza** — tone of voice, bio profili, link sito → social
+5. **E-E-A-T** — autori, expertise, autoritarietà, fiducia (recensioni, certificazioni)
+6. **Performance social** — formati top, canali underperforming, mix obiettivi
+
+Output: SOLO JSON valido strutturato.
+
+Schema:
+{
+  "data_audit": "YYYY-MM-DD",
+  "periodo": "settimanale|mensile",
+  "score_globale": 0-100,
+  "scores": {
+    "seo_tecnico": 0-100,
+    "seo_contenuti": 0-100,
+    "geo_ai_search": 0-100,
+    "social_coerenza": 0-100,
+    "eeat": 0-100,
+    "performance_social": 0-100
+  },
+  "riepilogo": "2-3 frasi su stato generale",
+  "punti_forti": ["..."],
+  "punti_critici": ["..."],
+  "miglioramenti_prioritari": [
+    {
+      "area": "seo_tecnico|geo_ai_search|...",
+      "azione": "Cosa fare concretamente",
+      "impatto": "alto|medio|basso",
+      "effort": "alto|medio|basso",
+      "deadline_suggerita": "YYYY-MM-DD"
+    }
+  ],
+  "kpi_da_monitorare": [
+    {"metrica": "...", "valore_attuale": "...", "target": "..."}
+  ],
+  "contenuti_suggeriti": [
+    {"tema": "...", "formato": "post|carousel|reel|blog", "canale": "...", "priorita": "alta|media"}
+  ]
+}

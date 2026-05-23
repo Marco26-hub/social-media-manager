@@ -1,0 +1,177 @@
+{
+  "name": "SOCIAL_F_REPORT",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 20 * * 0" }] } },
+      "id": "n1",
+      "name": "Schedule Weekly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [120, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "workflow-F",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "n2",
+      "name": "Webhook Manual",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [120, 400],
+      "webhookId": "workflow-F"
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = new Date();\nd.setDate(d.getDate() - 7);\nconst iso = d.toISOString();\nreturn [{ json: { since: iso } }];"
+      },
+      "id": "n3",
+      "name": "Compute Since",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [340, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/calendario?select=*&data_pubblicazione=gte.{{ $json.since.substring(0,10) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n4",
+      "name": "Read CALENDARIO 7gg",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 200],
+      "credentials": { "httpHeaderAuth": { "id": "SUPABASE", "name": "Supabase API" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/log_pubblicazioni?select=*&timestamp=gte.{{ $('Compute Since').first().json.since }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n5",
+      "name": "Read LOG 7gg",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 400],
+      "credentials": { "httpHeaderAuth": { "id": "SUPABASE", "name": "Supabase API" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const contenuti = $('Read CALENDARIO 7gg').first().json || [];\nconst logs = $('Read LOG 7gg').first().json || [];\nconst stats = {\n  total: contenuti.length,\n  pubblicati: contenuti.filter(c => c.status === 'PUBBLICATO').length,\n  errori: contenuti.filter(c => c.status === 'ERRORE' || c.status === 'ERRORE_MANUALE').length,\n  bozze: contenuti.filter(c => c.status === 'BOZZA' || c.status === 'DA_APPROVARE').length\n};\nreturn [{ json: { contenuti, logs, stats } }];"
+      },
+      "id": "n6",
+      "name": "Prep Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 3000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Sei social media manager. Crea report settimanale markdown.\\n\\nCALENDARIO ultimi 7gg:\\n\" + JSON.stringify($json.contenuti) + \"\\n\\nLOG:\\n\" + JSON.stringify($json.logs) + \"\\n\\nReport:\\n1. Pubblicati\\n2. Non pubblicati\\n3. Errori\\n4. Top formati\\n5. Top canali\\n6. Suggerimenti prossima settimana\\n7. Idee nuovi contenuti\\n8. Prodotti da spingere\\n\\nTono pratico sintetico. Output markdown puro.\"\n    }\n  ]\n}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n7",
+      "name": "Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 300],
+      "credentials": { "httpHeaderAuth": { "id": "ANTHROPIC", "name": "Anthropic x-api-key" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const txt = $json.content?.[0]?.text || '';\nif (!txt) throw new Error('Empty response');\nreturn [{ json: { markdown: txt, timestamp: new Date().toISOString() } }];"
+      },
+      "id": "n8",
+      "name": "Parse Markdown",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/log_pubblicazioni",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"timestamp\": \"{{ $json.timestamp }}\", \"status_finale\": \"REPORT\", \"messaggio\": {{ JSON.stringify($json.markdown) }}, \"errore\": null }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n9",
+      "name": "Insert Report Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 300],
+      "credentials": { "httpHeaderAuth": { "id": "SUPABASE", "name": "Supabase API" } },
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Schedule Weekly": { "main": [[{ "node": "Compute Since", "type": "main", "index": 0 }]] },
+    "Webhook Manual": { "main": [[{ "node": "Compute Since", "type": "main", "index": 0 }]] },
+    "Compute Since": {
+      "main": [[
+        { "node": "Read CALENDARIO 7gg", "type": "main", "index": 0 },
+        { "node": "Read LOG 7gg", "type": "main", "index": 0 }
+      ]]
+    },
+    "Read CALENDARIO 7gg": { "main": [[{ "node": "Prep Context", "type": "main", "index": 0 }]] },
+    "Read LOG 7gg": { "main": [[{ "node": "Prep Context", "type": "main", "index": 0 }]] },
+    "Prep Context": { "main": [[{ "node": "Claude API", "type": "main", "index": 0 }]] },
+    "Claude API": { "main": [[{ "node": "Parse Markdown", "type": "main", "index": 0 }]] },
+    "Parse Markdown": { "main": [[{ "node": "Insert Report Log", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Europe/Rome", "executionOrder": "v1", "errorWorkflow": "SOCIAL_H_ERROR_HANDLER" }
+}

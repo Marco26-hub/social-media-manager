@@ -3,8 +3,8 @@ export type Status =
   | 'IN_PUBBLICAZIONE' | 'PUBBLICATO' | 'ERRORE'
   | 'ERRORE_MANUALE' | 'DRY_RUN_OK' | 'ARCHIVIATO'
 
-export type Canale = 'instagram' | 'facebook' | 'tiktok' | 'pinterest' | 'youtube_shorts'
-export type Formato = 'post' | 'carousel' | 'reel' | 'story' | 'pin' | 'short' | 'video'
+export type Canale = 'instagram' | 'facebook' | 'tiktok' | 'pinterest' | 'youtube_shorts' | 'blog'
+export type Formato = 'post' | 'carousel' | 'reel' | 'story' | 'pin' | 'short' | 'video' | 'articolo'
 export type MediaType = 'image' | 'video' | 'pin' | 'short'
 
 export interface Contenuto {
@@ -153,6 +153,52 @@ export interface Setting {
   valore: string
   descrizione: string | null
   updated_at: string
+}
+
+export interface BlogArticolo {
+  id: string
+  slug: string
+  meta_title: string
+  meta_description: string | null
+  h1: string
+  intro: string | null
+  sezioni: { h2: string; paragrafi: string[]; lista_punti?: string[] }[] | null
+  faq: { domanda: string; risposta: string }[] | null
+  cta_finale: string | null
+  keywords_target: string[] | null
+  prodotti_linkati: string[] | null
+  tempo_lettura_min: number | null
+  immagine_cover: string | null
+  autore: string
+  status: 'BOZZA' | 'DA_APPROVARE' | 'APPROVATO' | 'PUBBLICATO' | 'ARCHIVIATO'
+  data_pubblicazione: string | null
+  url_pubblicato: string | null
+  checked_seo: 'SI' | 'NO' | null
+  checked_copy: 'SI' | 'NO' | null
+  errore_tecnico: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SeoAudit {
+  id: string
+  data_audit: string
+  periodo: 'settimanale' | 'mensile'
+  score_globale: number
+  score_seo_tecnico: number
+  score_seo_contenuti: number
+  score_geo_ai_search: number
+  score_social_coerenza: number
+  score_eeat: number
+  score_performance_social: number
+  riepilogo: string
+  punti_forti: string[]
+  punti_critici: string[]
+  miglioramenti: { area: string; azione: string; impatto: string; effort: string; deadline_suggerita: string }[]
+  kpi_da_monitorare: { metrica: string; valore_attuale: string; target: string }[]
+  contenuti_suggeriti: { tema: string; formato: string; canale: string; priorita: string }[]
+  generato_da: string
+  created_at: string
 }
 
 // Supabase Database type (minimal for type safety)

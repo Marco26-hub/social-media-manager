@@ -1,0 +1,218 @@
+{
+  "name": "SOCIAL_L_SEO_GEO_AUDIT",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 21 * * 0" }] } },
+      "id": "n1",
+      "name": "Schedule Weekly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [120, 100]
+    },
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 9 1 * *" }] } },
+      "id": "n2",
+      "name": "Schedule Monthly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [120, 280]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "workflow-L",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "n3",
+      "name": "Webhook Manual",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [120, 460],
+      "webhookId": "workflow-L"
+    },
+    {
+      "parameters": {
+        "jsCode": "const isWebhook = $json.body !== undefined;\nconst periodoFromBody = $json.body?.periodo;\nconst today = new Date();\nconst isFirstOfMonth = today.getDate() === 1;\nconst periodo = periodoFromBody || (isFirstOfMonth ? 'mensile' : 'settimanale');\nconst days = periodo === 'mensile' ? 30 : 7;\nconst since = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];\nreturn [{ json: { periodo, days, since, dataAudit: today.toISOString().split('T')[0] } }];"
+      },
+      "id": "n4",
+      "name": "Determine Period",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [340, 280]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/brand?select=*&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n5",
+      "name": "Read BRAND",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 280],
+      "credentials": { "httpHeaderAuth": { "id": "SUPABASE", "name": "Supabase API" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/calendario?data_pubblicazione=gte.{{ $('Determine Period').item.json.since }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n6",
+      "name": "Read CALENDARIO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [780, 280],
+      "credentials": { "httpHeaderAuth": { "id": "SUPABASE", "name": "Supabase API" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/log_pubblicazioni?timestamp=gte.{{ $('Determine Period').item.json.since }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n7",
+      "name": "Read LOG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 280],
+      "credentials": { "httpHeaderAuth": { "id": "SUPABASE", "name": "Supabase API" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const brand = ($('Read BRAND').first().json[0]) || {};\nconst contenuti = $('Read CALENDARIO').first().json || [];\nconst logs = $('Read LOG').first().json || [];\nconst p = $('Determine Period').first().json;\nreturn [{ json: { brand, contenuti, logs, periodo: p.periodo, days: p.days, dataAudit: p.dataAudit } }];"
+      },
+      "id": "n8",
+      "name": "Prep Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1220, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Sei SEO + GEO auditor senior. Analizza performance e crea audit con miglioramenti concreti.\\n\\nBRAND:\\n\" + JSON.stringify($json.brand) + \"\\n\\nPERIODO: \" + $json.periodo + \"\\n\\nCONTENUTI ultimi \" + $json.days + \"gg:\\n\" + JSON.stringify($json.contenuti) + \"\\n\\nLOG:\\n\" + JSON.stringify($json.logs) + \"\\n\\nAree: SEO tecnico, SEO contenuti, GEO/AI search, social coerenza, E-E-A-T, performance.\\n\\nOutput SOLO JSON: {\\\"data_audit\\\":\\\"YYYY-MM-DD\\\",\\\"periodo\\\":\\\"\\\",\\\"score_globale\\\":0,\\\"scores\\\":{\\\"seo_tecnico\\\":0,\\\"seo_contenuti\\\":0,\\\"geo_ai_search\\\":0,\\\"social_coerenza\\\":0,\\\"eeat\\\":0,\\\"performance_social\\\":0},\\\"riepilogo\\\":\\\"\\\",\\\"punti_forti\\\":[],\\\"punti_critici\\\":[],\\\"miglioramenti_prioritari\\\":[{\\\"area\\\":\\\"\\\",\\\"azione\\\":\\\"\\\",\\\"impatto\\\":\\\"\\\",\\\"effort\\\":\\\"\\\",\\\"deadline_suggerita\\\":\\\"\\\"}],\\\"kpi_da_monitorare\\\":[{\\\"metrica\\\":\\\"\\\",\\\"valore_attuale\\\":\\\"\\\",\\\"target\\\":\\\"\\\"}],\\\"contenuti_suggeriti\\\":[{\\\"tema\\\":\\\"\\\",\\\"formato\\\":\\\"\\\",\\\"canale\\\":\\\"\\\",\\\"priorita\\\":\\\"\\\"}]}\"\n    }\n  ]\n}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n9",
+      "name": "Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 280],
+      "credentials": { "httpHeaderAuth": { "id": "ANTHROPIC", "name": "Anthropic x-api-key" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const txt = $json.content?.[0]?.text || '';\nconst m = txt.match(/\\{[\\s\\S]*\\}/);\nif (!m) throw new Error('No JSON');\nconst parsed = JSON.parse(m[0]);\nreturn [{ json: parsed }];"
+      },
+      "id": "n10",
+      "name": "Parse JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1660, 280]
+    },
+    {
+      "parameters": {
+        "jsCode": "const a = $json;\nreturn [{ json: {\n  data_audit: a.data_audit,\n  periodo: a.periodo,\n  score_globale: a.score_globale,\n  score_seo_tecnico: a.scores?.seo_tecnico,\n  score_seo_contenuti: a.scores?.seo_contenuti,\n  score_geo_ai_search: a.scores?.geo_ai_search,\n  score_social_coerenza: a.scores?.social_coerenza,\n  score_eeat: a.scores?.eeat,\n  score_performance_social: a.scores?.performance_social,\n  riepilogo: a.riepilogo,\n  punti_forti: a.punti_forti,\n  punti_critici: a.punti_critici,\n  miglioramenti: a.miglioramenti_prioritari,\n  kpi_da_monitorare: a.kpi_da_monitorare,\n  contenuti_suggeriti: a.contenuti_suggeriti,\n}}];"
+      },
+      "id": "n11",
+      "name": "Prep Audit Insert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1880, 280]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/seo_audit",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"data_audit\": {{ JSON.stringify($json.data_audit) }}, \"periodo\": {{ JSON.stringify($json.periodo) }}, \"score_globale\": {{ JSON.stringify($json.score_globale) }}, \"score_seo_tecnico\": {{ JSON.stringify($json.score_seo_tecnico) }}, \"score_seo_contenuti\": {{ JSON.stringify($json.score_seo_contenuti) }}, \"score_geo_ai_search\": {{ JSON.stringify($json.score_geo_ai_search) }}, \"score_social_coerenza\": {{ JSON.stringify($json.score_social_coerenza) }}, \"score_eeat\": {{ JSON.stringify($json.score_eeat) }}, \"score_performance_social\": {{ JSON.stringify($json.score_performance_social) }}, \"riepilogo\": {{ JSON.stringify($json.riepilogo) }}, \"punti_forti\": {{ JSON.stringify($json.punti_forti) }}, \"punti_critici\": {{ JSON.stringify($json.punti_critici) }}, \"miglioramenti\": {{ JSON.stringify($json.miglioramenti) }}, \"kpi_da_monitorare\": {{ JSON.stringify($json.kpi_da_monitorare) }}, \"contenuti_suggeriti\": {{ JSON.stringify($json.contenuti_suggeriti) }} }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n12",
+      "name": "Insert SEO Audit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2100, 280],
+      "credentials": { "httpHeaderAuth": { "id": "SUPABASE", "name": "Supabase API" } },
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Schedule Weekly": { "main": [[{ "node": "Determine Period", "type": "main", "index": 0 }]] },
+    "Schedule Monthly": { "main": [[{ "node": "Determine Period", "type": "main", "index": 0 }]] },
+    "Webhook Manual": { "main": [[{ "node": "Determine Period", "type": "main", "index": 0 }]] },
+    "Determine Period": { "main": [[{ "node": "Read BRAND", "type": "main", "index": 0 }]] },
+    "Read BRAND": { "main": [[{ "node": "Read CALENDARIO", "type": "main", "index": 0 }]] },
+    "Read CALENDARIO": { "main": [[{ "node": "Read LOG", "type": "main", "index": 0 }]] },
+    "Read LOG": { "main": [[{ "node": "Prep Context", "type": "main", "index": 0 }]] },
+    "Prep Context": { "main": [[{ "node": "Claude API", "type": "main", "index": 0 }]] },
+    "Claude API": { "main": [[{ "node": "Parse JSON", "type": "main", "index": 0 }]] },
+    "Parse JSON": { "main": [[{ "node": "Prep Audit Insert", "type": "main", "index": 0 }]] },
+    "Prep Audit Insert": { "main": [[{ "node": "Insert SEO Audit", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Europe/Rome", "executionOrder": "v1", "errorWorkflow": "SOCIAL_H_ERROR_HANDLER" }
+}

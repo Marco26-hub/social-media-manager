@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Setting } from '@/lib/types'
 import { Save, RefreshCw } from 'lucide-react'
+import { demoSettings } from '@/lib/demo-data'
+
+const isDemo = () => !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Setting[]>([])
@@ -12,16 +15,24 @@ export default function SettingsPage() {
   const [saving, setSaving]     = useState<string | null>(null)
   const [saved, setSaved]       = useState<string | null>(null)
   const supabase = createClient()
+  const demo = isDemo()
 
   useEffect(() => {
+    if (demo) {
+      setSettings(demoSettings)
+      setLoading(false)
+      return
+    }
     supabase.from('settings').select('*').order('chiave')
       .then(({ data }) => { setSettings(data ?? []); setLoading(false) })
-  }, [supabase])
+  }, [supabase, demo])
 
   async function updateSetting(s: Setting, newVal: string) {
     setSaving(s.id)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase.from('settings') as any).update({ valore: newVal }).eq('id', s.id)
+    if (!demo) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from('settings') as any).update({ valore: newVal }).eq('id', s.id)
+    }
     setSettings(prev => prev.map(x => x.id === s.id ? { ...x, valore: newVal } : x))
     setSaved(s.id)
     setTimeout(() => setSaved(null), 2000)
@@ -31,10 +42,10 @@ export default function SettingsPage() {
   const boolKeys = ['automation_enabled','dry_run','telegram_notifications','backup_enabled','approval_required','media_validation_required','stock_check_required']
 
   return (
-    <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Impostazioni</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Configurazione automazione</p>
+    <div className="p-4 md:p-8">
+      <div className="mb-4 md:mb-6">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Impostazioni</h1>
+        <p className="text-xs md:text-sm text-gray-500 mt-0.5">Configurazione automazione</p>
       </div>
 
       {loading ? (

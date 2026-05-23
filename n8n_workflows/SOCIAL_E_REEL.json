@@ -1,0 +1,183 @@
+{
+  "name": "SOCIAL_E_REEL",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "workflow-E",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "n1",
+      "name": "Webhook Manual",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [120, 300],
+      "webhookId": "workflow-E"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/calendario?id_contenuto=eq.{{ $json.body.id_contenuto }}&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n2",
+      "name": "Read CALENDARIO Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [340, 300],
+      "credentials": { "httpHeaderAuth": { "id": "SUPABASE", "name": "Supabase API" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/brand?select=*&limit=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n3",
+      "name": "Read BRAND",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 200],
+      "credentials": { "httpHeaderAuth": { "id": "SUPABASE", "name": "Supabase API" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/prodotti?select=*",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n4",
+      "name": "Read PRODOTTI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 400],
+      "credentials": { "httpHeaderAuth": { "id": "SUPABASE", "name": "Supabase API" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = ($('Read CALENDARIO Row').first().json[0]) || {};\nconst brand = ($('Read BRAND').first().json[0]) || {};\nconst products = $('Read PRODOTTI').first().json || [];\nconst product = products.find(p => p.product_id === row.product_id) || {};\nreturn [{ json: { row, brand, product } }];"
+      },
+      "id": "n5",
+      "name": "Merge Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 4000,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Sei creator TikTok/Reel fashion. Script video 15-20s.\\n\\nBRAND:\\n\" + JSON.stringify($json.brand) + \"\\n\\nPRODOTTO:\\n\" + JSON.stringify($json.product) + \"\\n\\nIDEA:\\n\" + JSON.stringify($json.row) + \"\\n\\nRegole: durata 15-20s, primi 2sec forti, 3-4 scene, CTA finale, overlay brevi.\\n\\nOutput SOLO JSON: {\\\"titolo_video\\\":\\\"\\\",\\\"durata\\\":\\\"15-20s\\\",\\\"hook_0_3_sec\\\":\\\"\\\",\\\"scene\\\":[{\\\"numero\\\":1,\\\"descrizione\\\":\\\"\\\",\\\"overlay\\\":\\\"\\\"}],\\\"voiceover\\\":\\\"\\\",\\\"musica_mood\\\":\\\"\\\",\\\"cta_finale\\\":\\\"\\\"}\"\n    }\n  ]\n}",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n6",
+      "name": "Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 300],
+      "credentials": { "httpHeaderAuth": { "id": "ANTHROPIC", "name": "Anthropic x-api-key" } },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const txt = $json.content?.[0]?.text || '';\nconst m = txt.match(/\\{[\\s\\S]*\\}/);\nif (!m) throw new Error('No JSON in response');\nconst script = JSON.parse(m[0]);\nconst row = $('Merge Context').first().json.row;\nreturn [{ json: {\n  id_contenuto: row.id_contenuto,\n  caption: script.voiceover || row.caption || '',\n  hook: script.hook_0_3_sec || '',\n  cta: script.cta_finale || '',\n  note: JSON.stringify(script)\n} }];"
+      },
+      "id": "n7",
+      "name": "Parse JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1220, 300]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/calendario?id_contenuto=eq.{{ $json.id_contenuto }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"formato\": \"reel\", \"caption\": {{ JSON.stringify($json.caption) }}, \"hook\": {{ JSON.stringify($json.hook) }}, \"cta\": {{ JSON.stringify($json.cta) }}, \"note\": {{ JSON.stringify($json.note) }}, \"media_type\": \"video\", \"status\": \"DA_APPROVARE\" }",
+        "options": { "response": { "response": { "neverError": true } } }
+      },
+      "id": "n8",
+      "name": "Update Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 300],
+      "credentials": { "httpHeaderAuth": { "id": "SUPABASE", "name": "Supabase API" } },
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Webhook Manual": { "main": [[{ "node": "Read CALENDARIO Row", "type": "main", "index": 0 }]] },
+    "Read CALENDARIO Row": {
+      "main": [[
+        { "node": "Read BRAND", "type": "main", "index": 0 },
+        { "node": "Read PRODOTTI", "type": "main", "index": 0 }
+      ]]
+    },
+    "Read BRAND": { "main": [[{ "node": "Merge Context", "type": "main", "index": 0 }]] },
+    "Read PRODOTTI": { "main": [[{ "node": "Merge Context", "type": "main", "index": 0 }]] },
+    "Merge Context": { "main": [[{ "node": "Claude API", "type": "main", "index": 0 }]] },
+    "Claude API": { "main": [[{ "node": "Parse JSON", "type": "main", "index": 0 }]] },
+    "Parse JSON": { "main": [[{ "node": "Update Row", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "Europe/Rome", "executionOrder": "v1", "errorWorkflow": "SOCIAL_H_ERROR_HANDLER" }
+}

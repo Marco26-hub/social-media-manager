@@ -1,12 +1,25 @@
 import { createClient } from '@/lib/supabase/server'
-import { Calendar, CheckCircle, AlertCircle, Send, Clock, TrendingUp } from 'lucide-react'
+import { Calendar, CheckCircle, AlertCircle, Send, Clock, TrendingUp, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import { demoContenuti, demoLogs } from '@/lib/demo-data'
+import AIModelSelector from '@/components/AIModelSelector'
+import { PLATFORM_LIST } from '@/lib/social-config'
 
 export const dynamic = 'force-dynamic'
 
+const isDemo = () => !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')
+
 async function getStats() {
+  if (isDemo()) {
+    return {
+      daApprovare: demoContenuti.filter(c => c.status === 'DA_APPROVARE').length,
+      pubblicati7g: demoContenuti.filter(c => c.status === 'PUBBLICATO').length,
+      errori: demoContenuti.filter(c => c.status === 'ERRORE' || c.status === 'ERRORE_MANUALE').length,
+      inCoda: demoContenuti.filter(c => c.status === 'APPROVATO').length,
+      ultimi: demoLogs,
+    }
+  }
   const supabase = await createClient()
-  const today = new Date().toISOString().split('T')[0]
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
 
   const [
@@ -45,16 +58,20 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 text-sm mt-1">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-5">
+        <h1 className="text-xl md:text-3xl font-bold text-gray-900 tracking-tight">Dashboard</h1>
+        <p className="text-gray-500 text-xs md:text-sm mt-1">
           {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </p>
       </div>
 
+      {/* Selettore modello AI — top dashboard */}
+      <AIModelSelector />
+
       {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
         {stats.map(({ label, value, icon: Icon, color, bg, href }) => (
           <Link href={href} key={label} className="card p-5 hover:shadow-md transition-shadow">
             <div className={`inline-flex p-2 rounded-lg ${bg} mb-3`}>
@@ -66,8 +83,33 @@ export default async function DashboardPage() {
         ))}
       </div>
 
+      {/* Grid social — entry-point per ogni piattaforma */}
+      <div className="mb-6 mt-2">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base md:text-lg font-bold text-gray-900">Crea contenuto</h2>
+          <Link href="/dashboard/piano" className="text-xs text-brand-600 hover:underline flex items-center gap-1">
+            Piano editoriale <ChevronRight className="w-3 h-3" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          {PLATFORM_LIST.map(p => (
+            <Link
+              key={p.key}
+              href={`/dashboard/social/${p.key}`}
+              className="card p-4 hover:shadow-md hover:-translate-y-0.5 transition-all text-center group"
+            >
+              <div className={`w-12 h-12 mx-auto rounded-2xl ${p.colorBg} flex items-center justify-center text-2xl mb-2 shadow-sm group-hover:scale-110 transition-transform`}>
+                {p.emoji}
+              </div>
+              <p className="font-semibold text-sm text-gray-900">{p.nome}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{p.formati.length} {p.formati.length === 1 ? 'formato' : 'formati'}</p>
+            </Link>
+          ))}
+        </div>
+      </div>
+
       {/* Ultimi log + CTA */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         <div className="lg:col-span-2 card p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-900">Ultime attività</h2>

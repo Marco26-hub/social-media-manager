@@ -1,0 +1,249 @@
+'use client'
+import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, Play } from 'lucide-react'
+import type { Contenuto } from '@/lib/types'
+
+const CANALE_HANDLE: Record<string, string> = {
+  instagram: '@brand_official',
+  facebook: 'Brand Official',
+  tiktok: '@brand_official',
+  pinterest: 'Brand Official',
+  youtube_shorts: 'Brand Official',
+}
+
+const CANALE_ICON: Record<string, string> = {
+  instagram: '📸', facebook: '🔵', tiktok: '🎵', pinterest: '📌', youtube_shorts: '▶️',
+}
+
+// Aspect ratios standard per canale/formato
+const ASPECT: Record<string, string> = {
+  'instagram-post':      'aspect-square',       // 1:1
+  'instagram-carousel':  'aspect-square',       // 1:1
+  'instagram-reel':      'aspect-[9/16]',       // 9:16
+  'instagram-story':     'aspect-[9/16]',       // 9:16
+  'facebook-post':       'aspect-[1.91/1]',     // landscape
+  'facebook-carousel':   'aspect-square',
+  'facebook-video':      'aspect-video',        // 16:9
+  'tiktok-video':        'aspect-[9/16]',
+  'tiktok-reel':         'aspect-[9/16]',
+  'pinterest-pin':       'aspect-[2/3]',        // 2:3 pin
+  'youtube_shorts-short':'aspect-[9/16]',
+}
+
+export default function PostPreview({ c }: { c: Contenuto }) {
+  const key = `${c.canale}-${c.formato}`
+  const aspect = ASPECT[key] ?? 'aspect-square'
+  const handle = CANALE_HANDLE[c.canale] ?? 'Brand'
+
+  // Layout Instagram Story — verticale con progress bar + stickers
+  if (c.formato === 'story') {
+    return (
+      <div className="max-w-[260px] mx-auto">
+        <div className="relative aspect-[9/16] bg-black rounded-2xl overflow-hidden shadow-xl">
+          {c.link_media_1 ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={c.link_media_1} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-pink-500 to-purple-700 flex items-center justify-center text-5xl">📸</div>
+          )}
+          {/* Progress bar */}
+          <div className="absolute top-2 left-2 right-2 flex gap-1">
+            {[1,2,3].map(i => (
+              <div key={i} className={`flex-1 h-0.5 rounded-full ${i === 1 ? 'bg-white' : 'bg-white/40'}`} />
+            ))}
+          </div>
+          {/* Profile header */}
+          <div className="absolute top-5 left-3 right-3 flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-0.5">
+              <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-xs">📸</div>
+            </div>
+            <span className="text-white text-xs font-semibold">{handle}</span>
+            <span className="text-white/60 text-[10px]">2h</span>
+          </div>
+          {/* Sticker hook */}
+          {c.hook && (
+            <div className="absolute top-1/3 left-3 right-3">
+              <div className="bg-white text-black text-sm font-bold p-3 rounded-lg shadow-lg leading-tight transform -rotate-2">
+                {c.hook}
+              </div>
+            </div>
+          )}
+          {/* CTA bottom + arrow swipe up */}
+          {c.cta && (
+            <div className="absolute bottom-6 left-0 right-0 text-center">
+              <div className="inline-flex flex-col items-center text-white">
+                <div className="w-6 h-6 border-2 border-white rounded-full flex items-center justify-center animate-bounce">
+                  <span className="text-xs">↑</span>
+                </div>
+                <span className="text-xs font-semibold mt-1">{c.cta}</span>
+              </div>
+            </div>
+          )}
+          {/* Reply input */}
+          <div className="absolute bottom-0 left-0 right-0 px-3 py-2 bg-gradient-to-t from-black/60 to-transparent">
+            <div className="border border-white/40 rounded-full px-3 py-1.5 text-white/70 text-xs">
+              Invia messaggio...
+            </div>
+          </div>
+        </div>
+        <p className="text-center text-xs text-gray-400 mt-2">Preview {c.canale} story</p>
+      </div>
+    )
+  }
+
+  // Layout Blog articolo
+  if (c.canale === 'blog' || c.formato === 'articolo') {
+    return (
+      <div className="max-w-[380px] mx-auto bg-white rounded-xl border border-gray-200 overflow-hidden shadow-lg">
+        {c.link_media_1 && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={c.link_media_1} alt="" className="w-full aspect-[16/9] object-cover" />
+        )}
+        <div className="p-4">
+          <p className="text-[10px] uppercase tracking-wide text-amber-700 font-semibold mb-1.5">Blog · {c.tema || 'Articolo'}</p>
+          <h2 className="font-bold text-gray-900 leading-snug mb-2">{c.hook || 'Titolo articolo'}</h2>
+          <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed">{c.caption}</p>
+          {c.hashtag && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {c.hashtag.split(' ').slice(0, 4).map((tag, i) => (
+                <span key={i} className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100 text-[10px] text-gray-400">
+            <span>{c.note || 'Brand Editorial'}</span>
+            <span>~4 min lettura</span>
+          </div>
+          {c.cta && (
+            <button className="w-full mt-3 text-xs font-semibold py-2 bg-amber-600 text-white rounded-lg">
+              {c.cta}
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Layout TikTok/Reel/Short — verticale fullscreen
+  if (c.formato === 'reel' || c.formato === 'short' || c.canale === 'tiktok') {
+    return (
+      <div className="max-w-[280px] mx-auto">
+        <div className={`relative ${aspect} bg-black rounded-2xl overflow-hidden shadow-xl`}>
+          {c.link_media_1 ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={c.link_media_1} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-5xl">{CANALE_ICON[c.canale]}</div>
+          )}
+          {/* Overlay player */}
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/70" />
+          <div className="absolute top-3 left-3 right-3 flex items-center justify-between text-white text-xs">
+            <span className="font-semibold">{handle}</span>
+            <Play className="w-4 h-4" />
+          </div>
+          {/* Caption sovrapposta */}
+          <div className="absolute bottom-3 left-3 right-12 text-white text-xs">
+            <p className="font-semibold mb-1">{handle}</p>
+            <p className="line-clamp-3 leading-snug">{c.caption ?? c.hook}</p>
+            <p className="text-[10px] opacity-80 mt-1 truncate">{c.hashtag}</p>
+          </div>
+          {/* Sidebar azioni */}
+          <div className="absolute right-2 bottom-16 flex flex-col gap-3 items-center text-white">
+            <Heart className="w-6 h-6" />
+            <MessageCircle className="w-6 h-6" />
+            <Send className="w-6 h-6" />
+          </div>
+        </div>
+        <p className="text-center text-xs text-gray-400 mt-2">Preview {c.canale} · {c.formato}</p>
+      </div>
+    )
+  }
+
+  // Layout Pinterest pin
+  if (c.canale === 'pinterest') {
+    return (
+      <div className="max-w-[260px] mx-auto">
+        <div className={`${aspect} bg-gray-100 rounded-2xl overflow-hidden shadow-lg relative`}>
+          {c.link_media_1 ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={c.link_media_1} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-4xl">📌</div>
+          )}
+          <button className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+            Salva
+          </button>
+        </div>
+        <div className="mt-2 px-1">
+          <p className="text-sm font-semibold text-gray-900 line-clamp-2">{c.hook}</p>
+          <p className="text-xs text-gray-500 mt-1">{handle}</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Layout Instagram/Facebook post
+  const isFB = c.canale === 'facebook'
+  return (
+    <div className={`max-w-[360px] mx-auto rounded-xl overflow-hidden shadow-lg ${isFB ? 'bg-white border border-gray-200' : 'bg-white border border-gray-100'}`}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <div className={`w-8 h-8 rounded-full ${isFB ? 'bg-blue-600' : 'bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600'} p-0.5`}>
+            <div className="w-full h-full rounded-full bg-white flex items-center justify-center text-xs">
+              {CANALE_ICON[c.canale]}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-900">{handle}</p>
+            <p className="text-[10px] text-gray-400">Sponsorizzato · {c.canale}</p>
+          </div>
+        </div>
+        <MoreHorizontal className="w-4 h-4 text-gray-400" />
+      </div>
+
+      {/* Media */}
+      <div className={`${aspect} bg-gray-100 relative`}>
+        {c.link_media_1 ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={c.link_media_1} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-5xl">{CANALE_ICON[c.canale]}</div>
+        )}
+        {c.formato === 'carousel' && (
+          <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
+            1/{[c.link_media_1, c.link_media_2, c.link_media_3, c.link_media_4, c.link_media_5].filter(Boolean).length}
+          </div>
+        )}
+      </div>
+
+      {/* Azioni IG-style */}
+      <div className="px-3 pt-2.5 pb-1 flex items-center gap-3">
+        <Heart className="w-5 h-5" />
+        <MessageCircle className="w-5 h-5" />
+        <Send className="w-5 h-5" />
+        <Bookmark className="w-5 h-5 ml-auto" />
+      </div>
+
+      {/* Caption */}
+      <div className="px-3 pb-3">
+        <p className="text-xs text-gray-900">
+          <span className="font-semibold mr-1">{handle}</span>
+          <span className="font-medium">{c.hook}</span>
+        </p>
+        {c.caption && (
+          <p className="text-xs text-gray-700 mt-1 whitespace-pre-wrap line-clamp-4">{c.caption}</p>
+        )}
+        {c.hashtag && (
+          <p className="text-xs text-blue-700 mt-1 truncate">{c.hashtag}</p>
+        )}
+        {c.cta && (
+          <button className={`mt-2 w-full text-xs font-semibold py-2 rounded-lg ${isFB ? 'bg-blue-600 text-white' : 'border border-gray-200 text-gray-900'}`}>
+            {c.cta}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}

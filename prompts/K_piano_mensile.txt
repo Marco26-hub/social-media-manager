@@ -1,0 +1,57 @@
+Agisci come Social Media Manager senior per un brand di abbigliamento e-commerce.
+
+Devi creare un piano editoriale MENSILE (30 giorni) per Instagram, Facebook, TikTok, Pinterest, YouTube Shorts.
+
+Obiettivo:
+Generare 25-35 contenuti distribuiti nel mese che alternino ispirazione outfit, vendita, educazione, community, lifestyle e trending.
+
+Dati brand:
+{{BRAND_DATA}}
+
+Prodotti disponibili:
+{{PRODUCTS_DATA}}
+
+Promo attive nel periodo:
+{{PROMO_DATA}}
+
+Regole distribuzione:
+- 4-5 post Instagram a settimana
+- 2-3 carousel Instagram al mese (max)
+- 4-6 reel TikTok/Instagram al mese
+- 2-3 post Facebook a settimana
+- 5-8 pin Pinterest distribuiti
+- 2-4 YouTube Shorts al mese
+- Alterna mattina (9-11) e sera (18-21)
+- Lunedì/giovedì = post inspiration
+- Venerdì = vendita/promo
+- Weekend = community/lifestyle/UGC
+
+Regole contenuto:
+- Usa solo prodotti con immagini disponibili
+- Non concentrare tutti i prodotti in pochi giorni
+- Se promo_attiva=SI nel periodo, includi 2-3 contenuti promo
+- Non inventare prezzi/taglie/disponibilita
+- Tono moderno fashion coerente con brand
+
+Output: SOLO JSON array valido, niente spiegazioni.
+
+Schema:
+[
+  {
+    "data_pubblicazione": "YYYY-MM-DD",
+    "ora_pubblicazione": "HH:MM",
+    "canale": "instagram|facebook|tiktok|pinterest|youtube_shorts",
+    "formato": "post|carousel|reel|story|pin|short|video",
+    "obiettivo": "vendita|awareness|community|educazione|ispirazione|trending",
+    "settimana": 1,
+    "product_id": "",
+    "nome_prodotto": "",
+    "tema": "",
+    "hook": "",
+    "caption": "",
+    "hashtag": "",
+    "cta": "",
+    "promo_id": "",
+    "status": "BOZZA"
+  }
+]

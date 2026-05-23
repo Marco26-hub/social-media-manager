@@ -1,14 +1,20 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Prodotto } from '@/lib/types'
+import { demoProdotti } from '@/lib/demo-data'
 
 export const dynamic = 'force-dynamic'
 
+const isDemo = () => !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')
+
 export default async function ProdottiPage() {
-  const supabase = await createClient()
-  const { data: prodotti } = await supabase
-    .from('prodotti')
-    .select('*')
-    .order('priorita', { ascending: true })
+  let prodotti
+  if (isDemo()) {
+    prodotti = demoProdotti
+  } else {
+    const supabase = await createClient()
+    const res = await supabase.from('prodotti').select('*').order('priorita', { ascending: true })
+    prodotti = res.data
+  }
 
   const stockColor: Record<string, string> = {
     disponibile: 'text-green-700 bg-green-50',
@@ -17,13 +23,13 @@ export default async function ProdottiPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Prodotti</h1>
-        <p className="text-sm text-gray-500 mt-0.5">{prodotti?.length ?? 0} prodotti nel catalogo</p>
+    <div className="p-4 md:p-8">
+      <div className="mb-4 md:mb-6">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Prodotti</h1>
+        <p className="text-xs md:text-sm text-gray-500 mt-0.5">{prodotti?.length ?? 0} prodotti nel catalogo</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
         {(prodotti ?? []).map((p: Prodotto) => (
           <div key={p.id} className="card p-4">
             <div className="flex gap-3">
