@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { demoSeoAudit } from '@/lib/demo-data'
 import type { SeoAudit } from '@/lib/types'
 import { TrendingUp, AlertTriangle, Target, CheckCircle2, Calendar, Search, Loader2, Globe, Sparkles } from 'lucide-react'
+import AIModelSelector from '@/components/AIModelSelector'
 import { useActiveClienteId } from '@/lib/tenant/client'
 
 import { isDemo } from '@/lib/demo'
@@ -84,6 +85,8 @@ export default function SeoPage() {
         <h1 className="text-xl md:text-3xl font-bold text-gray-900 tracking-tight">SEO + GEO Audit</h1>
         <p className="text-xs md:text-sm text-gray-500 mt-1">Analisi sito + ottimizzazione AI search engines</p>
       </div>
+
+      <AIModelSelector task="seo-audit" />
 
       {/* Form avvio audit */}
       <div className="card p-5 md:p-6 mb-6 bg-gradient-to-br from-teal-50 via-cyan-50 to-blue-50 border-teal-100">

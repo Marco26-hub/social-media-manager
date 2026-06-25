@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { PLATFORM_LIST, type PlatformKey } from '@/lib/social-config'
 import { Target, Calendar, CalendarRange, Sparkles, Loader2, Check, X, Info } from 'lucide-react'
 import ConfirmModal from '@/components/ConfirmModal'
+import AIModelSelector from '@/components/AIModelSelector'
 import { useActiveClienteId } from '@/lib/tenant/client'
 
 import { isDemo } from '@/lib/demo'
@@ -87,6 +88,8 @@ export default function PianoPage() {
           Un click → AI genera contenuti per tutti i social selezionati con il modello che hai impostato.
         </p>
       </div>
+
+      <AIModelSelector task="piano-editoriale" />
 
       {/* Step 1 — Periodo */}
       <div className="card p-5 mb-4">

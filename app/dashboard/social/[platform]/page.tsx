@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import StatusBadge from '@/components/StatusBadge'
 import ConfirmModal from '@/components/ConfirmModal'
+import AIModelSelector from '@/components/AIModelSelector'
 import type { Contenuto } from '@/lib/types'
 import { useActiveClienteId } from '@/lib/tenant/client'
 
@@ -107,6 +108,8 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
           </div>
         </div>
       </div>
+
+      <AIModelSelector task="contenuti-social" />
 
       {/* Format scegliere cosa creare */}
       <div className="mb-8">
