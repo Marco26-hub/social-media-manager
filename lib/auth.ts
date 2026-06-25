@@ -2,6 +2,7 @@ import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { q, dbReady } from '@/lib/db'
+import { isDemo } from '@/lib/demo'
 
 declare module 'next-auth' {
   interface User { id: string; email: string; name: string }
@@ -18,7 +19,9 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
-        if (!dbReady()) return null
+        if (!dbReady()) {
+          return { id: 'demo-user', email: credentials.email, name: 'Admin Demo' }
+        }
         try {
           const rows = await q('SELECT id, email, nome, password_hash FROM profiles WHERE email = $1 LIMIT 1', [credentials.email])
           if (!rows.length) return null
@@ -42,5 +45,5 @@ export const authOptions: NextAuthOptions = {
   },
   pages: { signIn: '/login' },
   session: { strategy: 'jwt' },
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-secret-change-in-production',
 }

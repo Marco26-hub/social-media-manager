@@ -243,6 +243,44 @@ const PROMPTS: Record<string, PromptSpec> = {
   },
 }
 
+function extractCaption(parsed: Record<string, unknown>, canale: string, formato: string): string {
+  if (parsed.caption_tiktok) return parsed.caption_tiktok as string
+  if (parsed.caption_adattata) return parsed.caption_adattata as string
+  if (parsed.descrizione_seo) return parsed.descrizione_seo as string
+  if (parsed.descrizione_video) return parsed.descrizione_video as string
+  if (parsed.corpo) return parsed.corpo as string
+  if (parsed.caption_principale) return parsed.caption_principale as string
+  if (parsed.caption) return parsed.caption as string
+  if (parsed.intro) return parsed.intro as string
+  return ''
+}
+
+function extractScenes(parsed: Record<string, unknown>): string | null {
+  const scenes = parsed.scene || parsed.scenes
+  if (!scenes) return null
+  return JSON.stringify(scenes)
+}
+
+function extractSlides(parsed: Record<string, unknown>): string | null {
+  const slides = parsed.slides || parsed.immagini || parsed.slides_json
+  if (!slides) return null
+  return JSON.stringify(slides)
+}
+
+function extractTags(parsed: Record<string, unknown>): string[] | null {
+  const tags = parsed.tags || parsed.tag || parsed.keywords_target || parsed.hashtag_array
+  if (Array.isArray(tags)) return tags
+  return null
+}
+
+function extractOverlay(parsed: Record<string, unknown>): string | null {
+  if (parsed.overlay_testo) return parsed.overlay_testo as string
+  if (parsed.overlay_text) return parsed.overlay_text as string
+  const scenes = parsed.scene || parsed.scenes
+  if (Array.isArray(scenes) && scenes[0]?.overlay_testo) return scenes[0].overlay_testo as string
+  return null
+}
+
 export async function POST(request: Request) {
   try {
     const { cliente_id, canale, formato, model, openrouter_key, tema, nome_prodotto, product_id } = await request.json()
@@ -258,17 +296,15 @@ export async function POST(request: Request) {
       q('SELECT * FROM prodotti WHERE cliente_id = $1', [cliente_id]),
     ])
     const brand = brandRows[0] ?? null
-
-    const product = products.find(p => p.product_id === product_id) || products[0] || {}
+    const product = (products as Array<Record<string, unknown>>).find(p => p.product_id === product_id) || products[0] || {}
 
     const userPrompt = build(
       spec,
       JSON.stringify(brand || {}, null, 2),
       JSON.stringify(product, null, 2),
-      canale,
-      formato,
+      canale, formato,
       tema || 'contenuto brand',
-      nome_prodotto || product?.nome_prodotto || '',
+      nome_prodotto || (product as Record<string, unknown>)?.nome_prodotto as string || '',
     )
 
     const aiRes = await callAI({
@@ -282,36 +318,56 @@ export async function POST(request: Request) {
     const parsed = extractJSON(aiRes) as Record<string, unknown>
     const id_contenuto = `C${Date.now().toString(36).toUpperCase()}`
 
+    const caption = extractCaption(parsed, canale, formato)
+    const scenes = extractScenes(parsed)
+    const slides = extractSlides(parsed)
+    const tags = extractTags(parsed)
+    const overlay = extractOverlay(parsed)
+    const ideaVisual = (parsed.idea_visual || parsed.idea_visual_descrizione || '') as string
+    const voiceover = (parsed.voiceover || '') as string
+    const music = (parsed.musica_mood || parsed.music_mood || '') as string
+    const titolo = (parsed.titolo || parsed.titolo_video || parsed.titolo_carosello || parsed.titolo_immagine || '') as string
+    const altText = (parsed.alt_text || parsed.alt || '') as string
+    const thumbnail = (parsed.thumbnail_url || parsed.immagine_cover || '') as string
+    const hook = (parsed.hook || parsed.hook_0_2_sec || parsed.hook_0_3_sec || '') as string
+    const hashtag = (parsed.hashtag || '') as string
+    const cta = (parsed.cta || parsed.cta_finale || parsed.domanda_finale || '') as string
+
     await q(
       `INSERT INTO calendario (
         cliente_id, id_contenuto, data_pubblicazione, ora_pubblicazione,
         canale, formato, tema, product_id, nome_prodotto,
-        hook, caption, hashtag, cta, note, status, media_type
+        hook, caption, hashtag, cta, note, status, media_type,
+        scenes_json, slides_json, overlay_text, alt_text, tags, thumbnail_url,
+        idea_visual, voiceover_script, music_mood
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8,
-        $9, $10, $11, $12, $13, $14, $15, $16
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,
+        $10,$11,$12,$13,$14,$15,$16,
+        $17,$18,$19,$20,$21,$22,$23,$24,$25
       )`,
       [
-      cliente_id,
-      id_contenuto,
-      new Date(Date.now() + 86400000).toISOString().split('T')[0],
-      '10:00',
-      canale,
-      formato,
-      tema || null,
-      product_id || null,
-      nome_prodotto || (product as { nome_prodotto?: string })?.nome_prodotto || null,
-      (parsed.hook as string) || null,
-      ((parsed.caption || parsed.caption_adattata || parsed.capitone || parsed.descrizione_seo || parsed.corpo || '') as string) || null,
-      (parsed.hashtag as string) || null,
-      ((parsed.cta || parsed.cta_finale || parsed.domanda_finale || '') as string) || null,
-      JSON.stringify(parsed).slice(0, 2000),
-      'DA_APPROVARE',
-      formato === 'reel' || formato === 'video' || formato === 'short' ? 'video' : 'image',
+        cliente_id, id_contenuto,
+        new Date(Date.now() + 86400000).toISOString().split('T')[0], '10:00',
+        canale, formato, tema || null, product_id || null,
+        nome_prodotto || (product as Record<string, unknown>)?.nome_prodotto as string || null,
+        hook || null,
+        caption || null,
+        hashtag || null,
+        cta || null,
+        JSON.stringify(parsed).slice(0, 3000),
+        'DA_APPROVARE',
+        formato === 'reel' || formato === 'video' || formato === 'short' ? 'video' : 'image',
+        scenes, slides, overlay || null,
+        altText || null,
+        tags ? JSON.stringify(tags) : null,
+        thumbnail || null,
+        ideaVisual || null,
+        voiceover || null,
+        music || null,
       ],
     )
 
-    return NextResponse.json({ ok: true, id_contenuto })
+    return NextResponse.json({ ok: true, id_contenuto, tipo: 'calendario' })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Errore generazione'
     return NextResponse.json({ error: msg }, { status: 500 })

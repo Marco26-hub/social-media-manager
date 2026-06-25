@@ -3,7 +3,7 @@ export type Status =
   | 'IN_PUBBLICAZIONE' | 'PUBBLICATO' | 'ERRORE'
   | 'ERRORE_MANUALE' | 'DRY_RUN_OK' | 'ARCHIVIATO'
 
-export type Canale = 'instagram' | 'facebook' | 'tiktok' | 'pinterest' | 'youtube_shorts' | 'blog'
+export type Canale = 'instagram' | 'facebook' | 'tiktok' | 'pinterest' | 'linkedin' | 'youtube_shorts' | 'blog'
 export type Formato = 'post' | 'carousel' | 'reel' | 'story' | 'pin' | 'short' | 'video' | 'articolo'
 export type MediaType = 'image' | 'video' | 'pin' | 'short'
 
@@ -93,6 +93,20 @@ export interface Contenuto {
   promo_validata: 'SI' | 'NO' | null
   fonte_media: string | null
   consenso_utilizzo: 'SI' | 'NO' | null
+  // Nuovi campi strutturati
+  scenes_json: string | null
+  slides_json: string | null
+  overlay_text: string | null
+  alt_text: string | null
+  tags: string[] | null
+  thumbnail_url: string | null
+  idea_visual: string | null
+  voiceover_script: string | null
+  music_mood: string | null
+  // Pre-publish checklist
+  checked_alt_text: 'SI' | 'NO' | null
+  checked_aspect_ratio: 'SI' | 'NO' | null
+  checked_media_valid: 'SI' | 'NO' | null
   created_at: string
   updated_at: string
 }

@@ -68,10 +68,15 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
       if (!clienteId) throw new Error('Cliente non selezionato')
       const aiModel = typeof window !== 'undefined' ? localStorage.getItem('ai_model') ?? 'claude-sonnet-4-6' : 'claude-sonnet-4-6'
       const orKey = typeof window !== 'undefined' ? localStorage.getItem('openrouter_key') ?? '' : ''
-      const res = await fetch('/api/generate/content', {
+      const isBlog = f.formato === 'articolo'
+      const endpoint = isBlog ? '/api/generate/blog' : '/api/generate/content'
+      const body = isBlog
+        ? { cliente_id: clienteId, model: aiModel, openrouter_key: orKey || undefined, tema: config.nome + ' - ' + f.nome }
+        : { cliente_id: clienteId, canale: config.canaleDb, formato: f.formato, model: aiModel, openrouter_key: orKey || undefined }
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente_id: clienteId, canale: config.canaleDb, formato: f.formato, model: aiModel, openrouter_key: orKey || undefined }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || `HTTP ${res.status}`) }
       setStates(s => ({ ...s, [f.id]: 'success' }))
