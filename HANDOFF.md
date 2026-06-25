@@ -37,7 +37,7 @@
 ## 1. Stato Build
 
 ```bash
-npm run build  # ✅ 31 route, verde
+npm run build  # ✅ 33 route, verde
 npm run dev    # http://localhost:3000
 npm run start  # build produzione
 ```
@@ -115,9 +115,10 @@ Database (Neon/Postgres):
 | `/api/generate/seo-audit` | sito_url, periodo, model | Audit salvato in seo_audit |
 | `/api/generate/brand-discovery` | url, model | Profilo brand (SETTORE, TONO, TARGET...) |
 | `/api/generate/score-content` | canale, formato, hook, caption | Score 0-100 con suggerimenti |
+| `/api/generate/ads` | platform, brand, obiettivo, budget | Campagna Google/FB/TikTok completa |
+| `/api/generate/strategy` | brand, settore, target, tono | Content pillars, frequenza, best time |
 | `/api/generate/scrape-contacts` | url, model | Email, WA, TG, social, indirizzo |
 | `/api/generate/client-discovery` | url, settore, model | ICP, buyer personas, competitor, KPI |
-| `/api/generate/ads` | platform, brand, obiettivo, budget | Campagna Google/FB/TikTok completa |
 
 ### System API
 | Route | Descrizione |
@@ -192,12 +193,14 @@ Genera contenuto (AI con contesto brand) → Calendario → Score (AI valuta) �
 
 ## 10. In Lavoro / Prossimi Step
 
-- [ ] **Enhanced Piano Editoriale**: analisi dati, strategia, risultati (da completare)
 - [ ] **Publish Bridge Blotato**: endpoint reale, scheduling (bloccato da API key)
 - [ ] **Media Validation**: check link media prima di pubblicazione
 - [ ] **Calendar drag & drop**: spostamento visuale contenuti
 - [ ] **Client portal**: link approvazione senza login
+- [ ] **Piano potenziato**: analisi dati + strategia + risultati
+- [ ] **Report PDF**: report automatico per cliente
 - [ ] **White-label**: logo agenzia custom
+- [ ] **Deploy effettivo**: database reale + env production su Render
 
 ---
 
@@ -218,7 +221,9 @@ BLOTATO_API_KEY=...               # Quando pronto
 ## 12. Ultimo Commit
 
 ```bash
-d70ec36 feat: ads page Google/FB/IG/TikTok with AI generation
+482336a feat: ads, brand discovery, client discovery, leads scraping, strategy API, silent AI fallback, smoke test, marketing video
 ```
+
+**33 route, build verde.**
 
 *Fine handoff. Non reintrodurre Supabase o n8n. Mantieni la demo mode funzionante.*
