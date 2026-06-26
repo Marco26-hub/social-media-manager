@@ -31,6 +31,76 @@ function explainTarget(files) {
   }
 }
 
+function stripSqlComments(content) {
+  return content
+    .split('\n')
+    .map((line) => line.replace(/--.*$/g, ''))
+    .join('\n')
+}
+
+function splitSqlStatements(content) {
+  const sql = stripSqlComments(content)
+  const statements = []
+  let current = ''
+  let inSingleQuote = false
+  let inDoubleQuote = false
+  let dollarQuoteTag = null
+
+  for (let index = 0; index < sql.length; index += 1) {
+    const char = sql[index]
+    const next = sql[index + 1]
+
+    if (!inSingleQuote && !inDoubleQuote) {
+      if (!dollarQuoteTag && char === '$') {
+        const rest = sql.slice(index)
+        const match = rest.match(/^\$[A-Za-z0-9_]*\$/)
+        if (match) {
+          dollarQuoteTag = match[0]
+          current += dollarQuoteTag
+          index += dollarQuoteTag.length - 1
+          continue
+        }
+      } else if (dollarQuoteTag && sql.startsWith(dollarQuoteTag, index)) {
+        current += dollarQuoteTag
+        index += dollarQuoteTag.length - 1
+        dollarQuoteTag = null
+        continue
+      }
+    }
+
+    if (!dollarQuoteTag && !inDoubleQuote && char === "'" && next === "'") {
+      current += char + next
+      index += 1
+      continue
+    }
+
+    if (!dollarQuoteTag && !inDoubleQuote && char === "'") {
+      inSingleQuote = !inSingleQuote
+      current += char
+      continue
+    }
+
+    if (!dollarQuoteTag && !inSingleQuote && char === '"') {
+      inDoubleQuote = !inDoubleQuote
+      current += char
+      continue
+    }
+
+    if (!dollarQuoteTag && !inSingleQuote && !inDoubleQuote && char === ';') {
+      const statement = current.trim()
+      if (statement) statements.push(statement)
+      current = ''
+      continue
+    }
+
+    current += char
+  }
+
+  const tail = current.trim()
+  if (tail) statements.push(tail)
+  return statements
+}
+
 async function main() {
   const allFiles = (await readdir(migrationsDir))
     .filter((file) => file.endsWith('.sql'))
@@ -87,8 +157,16 @@ async function main() {
       continue
     }
 
-    console.log(`→ apply ${filename}`)
-    await sql.query(content)
+    const statements = splitSqlStatements(content)
+    console.log(`→ apply ${filename} (${statements.length} statement)`)
+    for (const [statementIndex, statement] of statements.entries()) {
+      try {
+        await sql.query(statement)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        throw new Error(`${filename} statement ${statementIndex + 1}/${statements.length}: ${message}`)
+      }
+    }
     await sql`
       insert into schema_migrations (filename, checksum)
       values (${filename}, ${hash})

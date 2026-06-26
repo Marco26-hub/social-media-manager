@@ -28,6 +28,7 @@ comment on column social_accounts.refresh_token is 'Refresh token per rinnovo au
 comment on column social_accounts.token_expires_at is 'Scadenza token (null = non scade)';
 
 -- Trigger updated_at
+drop trigger if exists tr_social_accounts_updated_at on social_accounts;
 create trigger tr_social_accounts_updated_at
   before update on social_accounts
   for each row execute function update_updated_at();

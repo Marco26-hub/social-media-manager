@@ -345,30 +345,37 @@ begin
 end;
 $$ language plpgsql;
 
+drop trigger if exists tr_profiles_updated_at on profiles;
 create trigger tr_profiles_updated_at
   before update on profiles
   for each row execute function update_updated_at();
 
+drop trigger if exists tr_clienti_updated_at on clienti;
 create trigger tr_clienti_updated_at
   before update on clienti
   for each row execute function update_updated_at();
 
+drop trigger if exists tr_calendario_updated_at on calendario;
 create trigger tr_calendario_updated_at
   before update on calendario
   for each row execute function update_updated_at();
 
+drop trigger if exists tr_prodotti_updated_at on prodotti;
 create trigger tr_prodotti_updated_at
   before update on prodotti
   for each row execute function update_updated_at();
 
+drop trigger if exists tr_brand_updated_at on brand;
 create trigger tr_brand_updated_at
   before update on brand
   for each row execute function update_updated_at();
 
+drop trigger if exists tr_settings_updated_at on settings;
 create trigger tr_settings_updated_at
   before update on settings
   for each row execute function update_updated_at();
 
+drop trigger if exists tr_blog_articoli_updated_at on blog_articoli;
 create trigger tr_blog_articoli_updated_at
   before update on blog_articoli
   for each row execute function update_updated_at();
