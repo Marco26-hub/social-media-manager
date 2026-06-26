@@ -296,6 +296,7 @@ npm run build
 - `next.config.ts` → `next.config.mjs` (non richiede TypeScript runtime)
 - `typescript` spostato da `devDependencies` a `dependencies` (garantito su Render)
 - `tailwindcss`, `postcss`, `autoprefixer` spostati in `dependencies` (necessari per build)
+- `@types/node`, `@types/react`, `@types/react-dom` spostati in `dependencies` per evitare auto-install di Next durante build con `NODE_ENV=production`
 - Render usa `npm ci` (installa tutto), non `npm install` (salta devDeps con NODE_ENV=production)
 - `eslint.config.mjs` rimosso (dipendenza `@eslint/eslintrc` mancante bloccava build)
 
