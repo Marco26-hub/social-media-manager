@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { callAI, extractJSON } from '@/lib/ai'
 import { requireAuth } from '@/lib/auth-utils'
+import { brandField, getClientGenerationContext, mergeBrandIdentity } from '@/lib/client-context'
 
 const LEGAL_PROMPT = `Sei un legal compliance specialist per e-commerce e brand digitali italiani.
 Genera documenti legali completi, conformi a GDPR UE 2016/679, Cookie Law (ePrivacy Directive),
@@ -79,16 +80,15 @@ Output SOLO JSON valido con campi markdown:
 export async function POST(request: Request) {
   try {
     await requireAuth()
-    const { brand, settore, url, target, model, openrouter_key } = await request.json()
-    if (!brand) {
-      return NextResponse.json({ error: 'brand richiesto' }, { status: 400 })
-    }
+    const { cliente_id, brand, settore, url, target, model, openrouter_key } = await request.json()
+    const clientContext = await getClientGenerationContext(cliente_id)
+    const brandIdentity = mergeBrandIdentity(clientContext, brand)
 
     const userPrompt = LEGAL_PROMPT
-      .replace('{{BRAND}}', JSON.stringify(brand, null, 2))
-      .replace('{{SETTORE}}', settore || 'non specificato')
-      .replace('{{URL}}', url || 'non specificato')
-      .replace('{{TARGET}}', target || 'non specificato')
+      .replace('{{BRAND}}', JSON.stringify(brandIdentity, null, 2))
+      .replace('{{SETTORE}}', settore || brandField(brandIdentity, 'settore'))
+      .replace('{{URL}}', url || brandField(brandIdentity, 'sito_url'))
+      .replace('{{TARGET}}', target || brandField(brandIdentity, 'target'))
 
     const aiRes = await callAI({
       model: model || 'claude-sonnet-4-6',
@@ -101,8 +101,10 @@ export async function POST(request: Request) {
     const parsed = extractJSON(aiRes) as Record<string, unknown>
     return NextResponse.json({
       ...parsed,
+      cliente_id: clientContext.clienteId,
+      brand_source: clientContext.source,
       data_generazione: new Date().toISOString().split('T')[0],
-      brand_generato: typeof brand === 'object' ? (brand as Record<string, string>).brand_name || 'Brand' : 'Brand',
+      brand_generato: brandField(brandIdentity, 'brand_name', 'Brand'),
     })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })

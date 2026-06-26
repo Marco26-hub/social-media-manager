@@ -60,15 +60,22 @@ export default function PianoPage() {
     try {
       if (!clienteId) throw new Error('Cliente non selezionato')
       const aiSettings = readAISettings()
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 90000)
       const res = await fetch('/api/generate/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({ cliente_id: clienteId, piattaforme, obiettivo, periodo, quality, ...aiSettings }),
       })
+      clearTimeout(timeout)
       if (!res.ok) throw new Error(await readApiError(res, 'Generazione piano fallita'))
       setMsg({ type: 'ok', text: 'Piano generato. I contenuti sono nel calendario.' })
     } catch (e) {
-      setMsg({ type: 'err', text: (e as Error).message })
+      const msg = (e as Error).name === 'AbortError'
+        ? 'Richiesta troppo lunga (90s). Il modello AI potrebbe essere sovraccarico. Riprova con un modello diverso.'
+        : (e as Error).message
+      setMsg({ type: 'err', text: msg })
     }
     setRunning(false)
   }

@@ -115,6 +115,7 @@ Database (Neon/Postgres):
 | `/api/data/seo-audit` | Lista audit | — |
 | `/api/data/report` | Report KPI | — |
 | `/api/data/approve` | GET token info (pubblico) | POST crea token / PATCH approva/rifiuta |
+| `/api/data/backup` | Export JSON contenuti, blog e log cliente | — |
 
 ### Generate API (POST)
 
@@ -134,12 +135,28 @@ Database (Neon/Postgres):
 | `/api/generate/compliance` | brand, tipologia | Cookie Policy, GDPR, Privacy, Disclaimer, Vendita |
 | `/api/generate/competitor-analysis` | competitor_nome, social | Content strategy, engagement, hashtag, gap, azioni migliorative |
 
+### Asset API
+| Route | Input | Output |
+|---|---|---|
+| `POST /api/assets/upload` | `cliente_id`, immagini multipart | URL pubblici `/uploads/...` per prompt, preview e `link_media_1..7` |
+
 ### System API
 | Route | Descrizione |
 |---|---|
 | `GET /api/system/health` | Stato: DB, Auth, AI, modalità demo/prod |
 | `GET /api/system/access` | Hint accesso admin per demo/setup; 404 in produzione se `SHOW_LOGIN_HINT` non è attivo |
 | `POST /api/webhook/blotato` | Callback Blotato: aggiorna status pubblicazione (scheduled/published/failed) |
+
+### Admin Operations
+- Backup contenuti: bottone `Backup` in `/dashboard/calendario`, scarica JSON con calendario, blog e ultimi log.
+- Cancellazione admin: `DELETE /api/data/calendario?id=...` richiede profilo `super_admin`/`admin`, elimina contenuto, token approvazione collegati e scrive log.
+
+### Ciclo Produzione Operativo
+- `/dashboard` mostra il workflow collegato: Brand → Prodotti/Asset → Piano → Produzione → Revisione → Pubblicazione → Report.
+- Ogni step dichiara input/output e punta alla pagina operativa corretta, così i servizi non restano scollegati.
+- Il CTA principale della hero punta sempre al prossimo step mancante o urgente.
+- Generazioni cliente-aware: `lib/client-context.ts` risolve sempre il cliente selezionato, carica brand identity, prodotti attivi e settings, poi li passa a content/blog/plan/ads/strategy/keywords/compliance/scoring.
+- Ciclo generazione/ottimizzazione: `lib/production-cycle.ts` definisce brief → concept → produzione → review → pubblicazione → learn; content, piano, blog, scoring e dashboard usano ipotesi performance, metrica da osservare, fallback e prossime azioni.
 
 ---
 
@@ -195,6 +212,7 @@ Nota operativa:
 - `quality=auto` è consigliato: decide dal pacchetto cliente; usare `quality=high` per servizi premium/elite.
 - Dal 26/06/2026 il server limita la qualità richiesta al piano cliente: un piano `starter/free` non può generare `high` anche se il client prova a inviarlo dal browser.
 - Nuova migrazione `db/migrations/014_visual_templates.sql`: salva `template_id`, `template_style`, `layout_spec_json`, `asset_requirements_json` per rendere producibili post/reel/story/carousel.
+- Nuova migrazione `db/migrations/015_generation_optimization_cycle.sql`: salva `production_cycle_stage`, `optimization_cycle_json`, `performance_hypothesis`, `next_iteration_actions` per trasformare ogni generazione in ciclo misurabile.
 
 ## 6.3 Report Cliente Vendibile
 
@@ -317,6 +335,8 @@ npm run build
 - Guida operativa: `RENDER_PRODUCTION.md`.
 - CI GitHub Actions: `.github/workflows/ci.yml` esegue install, lint, build, audit, migration dry-run e smoke test demo runtime.
 - Setup live in app: `/dashboard/setup` legge `/api/system/health` e mostra checklist produzione, credenziali admin, comandi Render Shell e readiness vendita.
+- Upload asset contenuti: `/dashboard/social/[platform]` permette upload immagini o URL pubblici; content/blog usano gli asset nei prompt e salvano media/cover.
+- Nota storage: `public/uploads` su Render è filesystem runtime, utile per servizio gestito; per SaaS self-service serve storage persistente S3/R2/Cloudinary.
 
 ### Deploy fixes applicati
 - `next.config.ts` → `next.config.mjs` (non richiede TypeScript runtime)

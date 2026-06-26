@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { callAI, extractJSON } from '@/lib/ai'
 import { requireAuth } from '@/lib/auth-utils'
+import { getClientGenerationContext, mergeBrandIdentity } from '@/lib/client-context'
 
 const SCORING_PROMPT = `Sei un social media quality auditor. Valuta questo contenuto e assegna un punteggio 0-100 per ogni dimensione.
 
@@ -22,6 +23,9 @@ Angolo: {{ANGLE}}
 Messaggio chiave: {{PRIMARY_MESSAGE}}
 Brief creativo: {{CREATIVE_BRIEF}}
 KPI target: {{KPI_TARGET}}
+Ipotesi performance: {{PERFORMANCE_HYPOTHESIS}}
+Ciclo ottimizzazione: {{OPTIMIZATION_CYCLE}}
+Prossime azioni: {{NEXT_ITERATION_ACTIONS}}
 Note produzione/compliance: {{OPS_NOTES}}
 
 Criteri di valutazione:
@@ -36,6 +40,7 @@ Criteri di valutazione:
 9. conversion_path (0-100): Funnel, KPI, CTA e prossima azione sono coerenti?
 10. accessibility (0-100): Alt text, leggibilità, safe-zone/sottotitoli quando necessari?
 11. compliance (0-100): Rispetta regole piattaforma, nessun claim rischioso, lunghezze ok?
+12. optimization_readiness (0-100): Ipotesi, metrica, segnale e prossime azioni sono chiari e misurabili?
 
 Output SOLO JSON valido:
 {
@@ -51,6 +56,7 @@ Output SOLO JSON valido:
   "conversion_path": 0,
   "accessibility": 0,
   "compliance": 0,
+  "optimization_readiness": 0,
   "giudizio": "OTTIMO|BUONO|MEDIOCRE|SCARSO",
   "punti_forti": ["",""],
   "punti_deboli": ["",""],
@@ -77,15 +83,22 @@ export async function POST(request: Request) {
       primary_message,
       creative_brief,
       kpi_target,
+      performance_hypothesis,
+      optimization_cycle,
+      next_iteration_actions,
       production_notes,
       compliance_notes,
+      cliente_id,
     } = await request.json()
     if (!canale || !formato) {
       return NextResponse.json({ error: 'canale e formato richiesti' }, { status: 400 })
     }
 
+    const clientContext = await getClientGenerationContext(cliente_id)
+    const brandIdentity = mergeBrandIdentity(clientContext)
+
     const userPrompt = SCORING_PROMPT
-      .replace('{{BRAND}}', 'Nessun profilo brand configurato (valutazione generica)')
+      .replace('{{BRAND}}', JSON.stringify(brandIdentity, null, 2))
       .replace('{{CANALE}}', canale)
       .replace('{{FORMATO}}', formato)
       .replace('{{HOOK}}', hook || '(nessun hook)')
@@ -100,6 +113,9 @@ export async function POST(request: Request) {
       .replace('{{PRIMARY_MESSAGE}}', primary_message || '(non indicato)')
       .replace('{{CREATIVE_BRIEF}}', creative_brief || '(non indicato)')
       .replace('{{KPI_TARGET}}', kpi_target || '(non indicato)')
+      .replace('{{PERFORMANCE_HYPOTHESIS}}', performance_hypothesis || '(non indicata)')
+      .replace('{{OPTIMIZATION_CYCLE}}', optimization_cycle ? JSON.stringify(optimization_cycle, null, 2) : '(non indicato)')
+      .replace('{{NEXT_ITERATION_ACTIONS}}', next_iteration_actions ? JSON.stringify(next_iteration_actions, null, 2) : '(non indicate)')
       .replace('{{OPS_NOTES}}', [production_notes, compliance_notes].filter(Boolean).join('\n') || '(non indicate)')
 
     const aiRes = await callAI({
@@ -111,7 +127,7 @@ export async function POST(request: Request) {
     })
 
     const parsed = extractJSON(aiRes) as Record<string, unknown>
-    return NextResponse.json(parsed)
+    return NextResponse.json({ cliente_id: clientContext.clienteId, brand_source: clientContext.source, ...parsed })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }

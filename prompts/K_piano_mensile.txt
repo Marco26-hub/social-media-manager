@@ -44,6 +44,8 @@ Regole contenuto:
 - Per Pin aggiungi keyword/search intent e visual 2:3
 - Aggiungi compliance_notes, risk_flags, missing_inputs e content_checklist
 - Aggiungi template_id, template_style, layout_spec e asset_requirements per produzione grafica/video
+- Aggiungi production_cycle_stage, optimization_cycle, performance_hypothesis e next_iteration_actions
+- Ogni idea deve dichiarare metrica da osservare e prossimo test: il piano deve imparare dai risultati
 
 Output: SOLO JSON array valido, niente spiegazioni.
 
@@ -88,6 +90,16 @@ Schema:
     "ab_variants": [],
     "kpi_target": "",
     "expected_outcome": "",
+    "production_cycle_stage": "brief",
+    "optimization_cycle": {
+      "hypothesis": "",
+      "metric_to_watch": "",
+      "learning_signal": "",
+      "next_test": "",
+      "fallback_action": ""
+    },
+    "performance_hypothesis": "",
+    "next_iteration_actions": [],
     "production_notes": "",
     "compliance_notes": "",
     "risk_flags": [],

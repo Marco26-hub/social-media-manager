@@ -14,6 +14,8 @@ import {
   resolveContentQuality,
   isQualityDowngraded,
 } from '@/lib/content-quality'
+import { getClientGenerationContext } from '@/lib/client-context'
+import { normalizeProductionCycleStage } from '@/lib/production-cycle'
 
 type PromptSpec = {
   persona: string
@@ -28,7 +30,54 @@ type PromptSpec = {
   outputSchema: string
 }
 
-function build(p: PromptSpec, brand: string, prodotto: string, canale: string, formato: string, tema: string, nomeProdotto: string, qualityContext: string) {
+type UserAsset = {
+  name?: string
+  url: string
+  mime?: string
+  source?: string
+}
+
+function normalizeAssets(input: unknown, fallbackUrls: unknown): UserAsset[] {
+  const rawAssets = Array.isArray(input) ? input : []
+  const assets = rawAssets
+    .map((item): UserAsset | null => {
+      if (!item || typeof item !== 'object') return null
+      const record = item as Record<string, unknown>
+      const url = typeof record.url === 'string' ? record.url.trim() : ''
+      if (!url) return null
+      return {
+        name: typeof record.name === 'string' ? record.name : undefined,
+        url,
+        mime: typeof record.mime === 'string' ? record.mime : undefined,
+        source: typeof record.source === 'string' ? record.source : undefined,
+      }
+    })
+    .filter((asset): asset is UserAsset => Boolean(asset))
+
+  const urls = Array.isArray(fallbackUrls) ? fallbackUrls : []
+  for (const item of urls) {
+    if (typeof item !== 'string' || !item.trim()) continue
+    const url = item.trim()
+    if (!assets.some(asset => asset.url === url)) assets.push({ url, source: 'url' })
+  }
+
+  return assets.slice(0, 7)
+}
+
+function buildAssetContext(assets: UserAsset[]) {
+  if (!assets.length) return 'ASSET FORNITI: nessun asset caricato. Genera anche asset_requirements chiari.'
+  return `ASSET FORNITI DALL'UTENTE (USALI COME BASE VISIVA, SENZA INVENTARE IMMAGINI NON PRESENTI):
+${assets.map((asset, index) => `${index + 1}. ${asset.name || 'asset'} — ${asset.url} — tipo: ${asset.mime || 'image'} — fonte: ${asset.source || 'utente'}`).join('\n')}
+
+Regole asset:
+- Il contenuto deve indicare quale asset usare in ogni post/slide/frame/scena.
+- Per post/story/carousel usa gli asset come visual principale o dettaglio prodotto.
+- Per reel/video usa gli asset come product hero, B-roll, cutaway o cover quando non è disponibile video.
+- Se un asset non è adatto al formato, segnala il problema in missing_inputs e proponi un fallback produttivo.
+- Non inventare foto, loghi, UGC, claim o prove non contenuti negli asset/dati forniti.`
+}
+
+function build(p: PromptSpec, brand: string, prodotto: string, canale: string, formato: string, tema: string, nomeProdotto: string, qualityContext: string, assetContext: string) {
   return `${p.persona}
 
 BRAND:
@@ -38,6 +87,8 @@ PRODOTTO:
 ${prodotto}
 
 IDEA: Canale: ${canale}, Formato: ${formato}, Tema: ${tema}, Prodotto: ${nomeProdotto}
+
+${assetContext}
 
 GOAL: ${p.goal}
 DIMENSIONE: ${p.dimensione}
@@ -326,11 +377,14 @@ function buildSystemPrompt(brand: Record<string, unknown> | null, quality: strin
 export async function POST(request: Request) {
   try {
     await requireAuth()
-    const { cliente_id, canale, formato, model, openrouter_key, tema, nome_prodotto, product_id, quality, quality_level, post_quality, qualita, obiettivo } = await request.json()
-    if (!cliente_id || !canale || !formato) {
-      return NextResponse.json({ error: 'cliente_id, canale, formato richiesti' }, { status: 400 })
+    const { cliente_id, canale, formato, model, openrouter_key, tema, nome_prodotto, product_id, quality, quality_level, post_quality, qualita, obiettivo, uploaded_assets, media_urls } = await request.json()
+    if (!canale || !formato) {
+      return NextResponse.json({ error: 'canale, formato richiesti' }, { status: 400 })
     }
-    await requireClienteAccess(cliente_id)
+    const clientContext = await getClientGenerationContext(cliente_id)
+    const effectiveClienteId = clientContext.clienteId
+    if (!effectiveClienteId) return NextResponse.json({ error: 'Nessun cliente selezionato' }, { status: 400 })
+    await requireClienteAccess(effectiveClienteId)
     const requestedQuality = quality ?? quality_level ?? post_quality ?? qualita
     if (isDemo() || !dbReady()) {
       const demoQuality = resolveContentQuality({ requestedQuality })
@@ -350,9 +404,9 @@ export async function POST(request: Request) {
     const spec = PROMPTS[key] || PROMPTS[`instagram:post`]
 
     const [brandRows, products, clientRows] = await Promise.all([
-      q('SELECT * FROM brand WHERE cliente_id = $1 LIMIT 1', [cliente_id]),
-      q('SELECT * FROM prodotti WHERE cliente_id = $1', [cliente_id]),
-      q('SELECT * FROM clienti WHERE id = $1 LIMIT 1', [cliente_id]),
+      q('SELECT * FROM brand WHERE cliente_id = $1 LIMIT 1', [effectiveClienteId]),
+      q('SELECT * FROM prodotti WHERE cliente_id = $1', [effectiveClienteId]),
+      q('SELECT * FROM clienti WHERE id = $1 LIMIT 1', [effectiveClienteId]),
     ])
     const brand = (brandRows[0] ?? null) as Record<string, unknown> | null
     const client = (clientRows[0] ?? null) as Record<string, unknown> | null
@@ -361,6 +415,9 @@ export async function POST(request: Request) {
 
     const brandContext = buildBrandContext(brand)
     const qualityContext = buildQualityContext({ quality: contentQuality, canale, formato, obiettivo })
+    const userAssets = normalizeAssets(uploaded_assets, media_urls)
+    const mediaUrls = userAssets.map(asset => asset.url)
+    const assetContext = buildAssetContext(userAssets)
 
     const basePrompt = build(
       spec,
@@ -370,6 +427,7 @@ export async function POST(request: Request) {
       tema || 'contenuto brand',
       nome_prodotto || (product as Record<string, unknown>)?.nome_prodotto as string || '',
       qualityContext,
+      assetContext,
     )
 
     // Prepend brand context for richer generation
@@ -406,16 +464,20 @@ export async function POST(request: Request) {
       'cliente_id', 'id_contenuto', 'data_pubblicazione', 'ora_pubblicazione',
       'canale', 'formato', 'obiettivo', 'tema', 'product_id', 'nome_prodotto',
       'hook', 'caption', 'hashtag', 'cta', 'note', 'status', 'media_type',
+      'link_media_1', 'link_media_2', 'link_media_3', 'link_media_4', 'link_media_5', 'link_media_6', 'link_media_7',
+      'fonte_media', 'consenso_utilizzo',
       'scenes_json', 'slides_json', 'overlay_text', 'alt_text', 'tags', 'thumbnail_url',
       'idea_visual', 'voiceover_script', 'music_mood',
       'quality_level', 'audience_segment', 'funnel_stage', 'angle', 'primary_message',
       'proof_points', 'hook_variants', 'caption_long', 'cta_variants', 'creative_brief',
       'template_id', 'template_style', 'layout_spec_json', 'asset_requirements_json',
       'production_notes', 'compliance_notes', 'risk_flags', 'platform_best_practices',
-      'ab_variants_json', 'kpi_target', 'expected_outcome', 'missing_inputs', 'content_checklist',
+      'ab_variants_json', 'kpi_target', 'expected_outcome', 'production_cycle_stage',
+      'optimization_cycle_json', 'performance_hypothesis', 'next_iteration_actions',
+      'missing_inputs', 'content_checklist',
     ]
     const insertValues = [
-      cliente_id, id_contenuto,
+      effectiveClienteId, id_contenuto,
       new Date(Date.now() + 86400000).toISOString().split('T')[0], '10:00',
       canale, formato, obiettivo || null, tema || null, product_id || null,
       nome_prodotto || (product as Record<string, unknown>)?.nome_prodotto as string || null,
@@ -426,10 +488,19 @@ export async function POST(request: Request) {
       JSON.stringify(parsed).slice(0, 3000),
       'DA_APPROVARE',
       formato === 'reel' || formato === 'video' || formato === 'short' ? 'video' : 'image',
+      mediaUrls[0] || null,
+      mediaUrls[1] || null,
+      mediaUrls[2] || null,
+      mediaUrls[3] || null,
+      mediaUrls[4] || null,
+      mediaUrls[5] || null,
+      mediaUrls[6] || null,
+      mediaUrls.length ? (userAssets.some(asset => asset.source === 'upload') ? 'upload_cliente' : 'url_cliente') : null,
+      mediaUrls.length ? 'SI' : null,
       scenes, slides, overlay || null,
       altText || null,
       tags ? JSON.stringify(tags) : null,
-      thumbnail || null,
+      thumbnail || mediaUrls[0] || null,
       ideaVisual || null,
       voiceoverScript || voiceover || null,
       music || null,
@@ -454,6 +525,10 @@ export async function POST(request: Request) {
       jsonbParam(pickJson(parsed, ['ab_variants', 'ab_variants_json', 'varianti_ab'])),
       pickText(parsed, ['kpi_target', 'kpi_primario']) || null,
       pickText(parsed, ['expected_outcome', 'risultato_atteso']) || null,
+      normalizeProductionCycleStage(pickText(parsed, ['production_cycle_stage', 'cycle_stage', 'fase_ciclo']), 'review'),
+      jsonbParam(pickJson(parsed, ['optimization_cycle', 'optimization_cycle_json', 'ciclo_ottimizzazione'])),
+      pickText(parsed, ['performance_hypothesis', 'ipotesi_performance', 'hypothesis']) || null,
+      jsonbParam(pickJson(parsed, ['next_iteration_actions', 'azioni_prossima_iterazione', 'next_actions'])),
       jsonbParam(pickJson(parsed, ['missing_inputs', 'input_mancanti'])),
       jsonbParam(pickJson(parsed, ['content_checklist', 'checklist'])),
     ]

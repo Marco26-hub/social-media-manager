@@ -148,7 +148,7 @@ export default function AIModelSelector({ task }: { task?: Task }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap md:flex-nowrap">
           {!savedKey ? (
             <button onClick={() => setShowKeyInput(s => !s)} className="btn-secondary text-xs py-2 px-3">
               <Key className="w-3.5 h-3.5" />
@@ -160,10 +160,10 @@ export default function AIModelSelector({ task }: { task?: Task }) {
             </span>
           )}
 
-          <div className="relative" ref={dropdownRef}>
+          <div className="relative max-w-full" ref={dropdownRef}>
             <button
               onClick={() => setOpen(o => !o)}
-              className="btn-primary text-xs py-2 px-3 min-w-[140px] justify-between"
+              className="btn-primary text-xs py-2 px-3 min-w-0 sm:min-w-[140px] justify-between"
             >
               <span className="flex items-center gap-1.5">
                 <Zap className="w-3.5 h-3.5" />
@@ -173,7 +173,7 @@ export default function AIModelSelector({ task }: { task?: Task }) {
             </button>
 
             {open && (
-              <div className="absolute right-0 top-full mt-2 w-[360px] bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+              <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] sm:w-[360px] max-w-[360px] bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
                 <div className="p-2 border-b border-gray-100">
                   <div className="relative">
                     <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />

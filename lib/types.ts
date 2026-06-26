@@ -125,6 +125,10 @@ export interface Contenuto {
   ab_variants_json?: unknown | null
   kpi_target?: string | null
   expected_outcome?: string | null
+  production_cycle_stage?: 'brief' | 'creative' | 'production' | 'review' | 'publish' | 'learn' | null
+  optimization_cycle_json?: unknown | null
+  performance_hypothesis?: string | null
+  next_iteration_actions?: unknown | null
   missing_inputs?: unknown | null
   content_checklist?: unknown | null
   // Pre-publish checklist

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { dbReady, q } from '@/lib/db'
-import { requireAuth, requireClienteId } from '@/lib/auth-utils'
+import { requireAdmin, requireAuth, requireClienteId } from '@/lib/auth-utils'
 import { scheduleOnBlotato } from '@/lib/publish/schedule'
 import { validateMediaUrls, formatMediaError } from '@/lib/media-validate'
 import { notifyAgency } from '@/lib/notifications'
@@ -82,6 +82,10 @@ const CALENDARIO_UPDATE_COLUMNS = new Set([
   'ab_variants_json',
   'kpi_target',
   'expected_outcome',
+  'production_cycle_stage',
+  'optimization_cycle_json',
+  'performance_hypothesis',
+  'next_iteration_actions',
   'missing_inputs',
   'content_checklist',
   'checked_alt_text',
@@ -204,6 +208,46 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json({ ok: true })
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    await requireAdmin()
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'id richiesto' }, { status: 400 })
+
+    if (isDemo() || !dbReady()) {
+      return NextResponse.json({ ok: true, demo: true, deleted_id: id })
+    }
+
+    const cid = await requireClienteId()
+    const rows = await q('SELECT * FROM calendario WHERE id = $1 AND cliente_id = $2 LIMIT 1', [id, cid])
+    if (!rows.length) {
+      return NextResponse.json({ error: 'contenuto non trovato' }, { status: 404 })
+    }
+
+    const row = rows[0] as Record<string, unknown>
+    await q('DELETE FROM approval_tokens WHERE cliente_id = $1 AND contenuto_id = $2', [cid, row.id_contenuto])
+    await q('DELETE FROM calendario WHERE id = $1 AND cliente_id = $2', [id, cid])
+    await q(
+      `INSERT INTO log_pubblicazioni (cliente_id, id_contenuto, canale, formato, status_precedente, status_finale, messaggio)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [
+        cid,
+        row.id_contenuto || null,
+        row.canale || null,
+        row.formato || null,
+        row.status || null,
+        'ARCHIVIATO',
+        'Contenuto cancellato da admin',
+      ],
+    )
+
+    return NextResponse.json({ ok: true, deleted_id: id })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }

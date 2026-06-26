@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { callAI, extractJSON } from '@/lib/ai'
 import { requireAuth } from '@/lib/auth-utils'
+import { brandField, getClientGenerationContext, mergeBrandIdentity } from '@/lib/client-context'
 
 const STRATEGY_PROMPT = `Sei un social media strategist senior. Analizza il brand e crea una strategia editoriale completa.
 
@@ -36,16 +37,15 @@ Output SOLO JSON valido:
 export async function POST(request: Request) {
   try {
     await requireAuth()
-    const { brand, settore, target, tono, model, openrouter_key } = await request.json()
-    if (!brand) {
-      return NextResponse.json({ error: 'brand richiesto' }, { status: 400 })
-    }
+    const { cliente_id, brand, settore, target, tono, model, openrouter_key } = await request.json()
+    const clientContext = await getClientGenerationContext(cliente_id)
+    const brandIdentity = mergeBrandIdentity(clientContext, brand)
 
     const userPrompt = STRATEGY_PROMPT
-      .replace('{{BRAND}}', JSON.stringify(brand, null, 2))
-      .replace('{{SETTORE}}', settore || 'non specificato')
-      .replace('{{TARGET}}', target || 'non specificato')
-      .replace('{{TONO}}', tono || 'non specificato')
+      .replace('{{BRAND}}', JSON.stringify(brandIdentity, null, 2))
+      .replace('{{SETTORE}}', settore || brandField(brandIdentity, 'settore'))
+      .replace('{{TARGET}}', target || brandField(brandIdentity, 'target'))
+      .replace('{{TONO}}', tono || brandField(brandIdentity, 'tono_voce'))
 
     const aiRes = await callAI({
       model: model || 'claude-sonnet-4-6',
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     })
 
     const parsed = extractJSON(aiRes) as Record<string, unknown>
-    return NextResponse.json(parsed)
+    return NextResponse.json({ cliente_id: clientContext.clienteId, brand_source: clientContext.source, ...parsed })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }

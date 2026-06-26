@@ -2,7 +2,8 @@ import { dbReady as isDbReady, q } from '@/lib/db'
 import { requireAuth, requireClienteId } from '@/lib/auth-utils'
 import {
   Calendar, CheckCircle, AlertCircle, Send, Clock, TrendingUp, ChevronRight,
-  Bot, Database, Rocket, ShieldCheck, Sparkles, Workflow
+  Bot, Database, Rocket, ShieldCheck, Sparkles, Workflow, Package, ImagePlus,
+  BarChart3, Megaphone
 } from 'lucide-react'
 import Link from 'next/link'
 import { demoContenuti, demoLogs } from '@/lib/demo-data'
@@ -10,6 +11,7 @@ import AIModelSelector from '@/components/AIModelSelector'
 import OpenRouterKeyInput from '@/components/OpenRouterKeyInput'
 import { PLATFORM_LIST } from '@/lib/social-config'
 import { isDemo } from '@/lib/demo'
+import { GENERATION_OPTIMIZATION_CYCLE } from '@/lib/production-cycle'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +27,8 @@ type DashboardLog = {
 async function getStats() {
   if (isDemo()) {
     return {
+      brandConfigurato: true,
+      prodotti: 3,
       daApprovare: demoContenuti.filter(c => c.status === 'DA_APPROVARE').length,
       pubblicati7g: demoContenuti.filter(c => c.status === 'PUBBLICATO').length,
       errori: demoContenuti.filter(c => c.status === 'ERRORE' || c.status === 'ERRORE_MANUALE').length,
@@ -46,6 +50,8 @@ async function getStats() {
     jobARows,
     jobFRows,
     ultimiRows,
+    brandRows,
+    productRows,
   ] = await Promise.all([
     q('SELECT count(*)::int as c FROM calendario WHERE cliente_id = $1 AND status = $2', [cid, 'DA_APPROVARE']),
     q('SELECT count(*)::int as c FROM calendario WHERE cliente_id = $1 AND status = $2 AND data_pubblicazione >= $3', [cid, 'PUBBLICATO', weekAgo]),
@@ -54,9 +60,13 @@ async function getStats() {
     q("SELECT count(*)::int as c FROM generation_jobs WHERE cliente_id = $1 AND status IN ('queued','running')", [cid]),
     q('SELECT count(*)::int as c FROM generation_jobs WHERE cliente_id = $1 AND status = $2', [cid, 'failed']),
     q('SELECT * FROM log_pubblicazioni WHERE cliente_id = $1 ORDER BY timestamp DESC LIMIT 5', [cid]),
+    q('SELECT count(*)::int as c FROM brand WHERE cliente_id = $1', [cid]),
+    q("SELECT count(*)::int as c FROM prodotti WHERE cliente_id = $1 AND prodotto_attivo = 'SI'", [cid]),
   ])
 
   return {
+    brandConfigurato: ((brandRows[0] as { c: number } | undefined)?.c ?? 0) > 0,
+    prodotti: (productRows[0] as { c: number } | undefined)?.c ?? 0,
     daApprovare: (daRows[0] as { c: number } | undefined)?.c ?? 0,
     pubblicati7g: (pubRows[0] as { c: number } | undefined)?.c ?? 0,
     errori: (errRows[0] as { c: number } | undefined)?.c ?? 0,
@@ -107,7 +117,7 @@ function getSystemHealth() {
 }
 
 export default async function DashboardPage() {
-  const { daApprovare, pubblicati7g, errori, inCoda, jobAttivi, jobFalliti, ultimi } = await getStats()
+  const { brandConfigurato, prodotti, daApprovare, pubblicati7g, errori, inCoda, jobAttivi, jobFalliti, ultimi } = await getStats()
   const systemHealth = getSystemHealth()
 
   const stats = [
@@ -124,6 +134,83 @@ export default async function DashboardPage() {
     DRY_RUN_OK:       'text-teal-700',
     ERRORE_WORKFLOW:  'text-orange-700',
   }
+
+  const productionFlow = [
+    {
+      step: '01',
+      title: 'Brand & regole',
+      input: 'Sito, tono, target, compliance',
+      output: 'Prompt memory e vincoli creativi',
+      href: '/dashboard/brand',
+      icon: Sparkles,
+      done: brandConfigurato,
+      cta: brandConfigurato ? 'Rivedi brand' : 'Completa brand',
+    },
+    {
+      step: '02',
+      title: 'Prodotti & asset',
+      input: 'Catalogo, immagini, link prodotto',
+      output: 'Asset pronti per post/reel/story/blog',
+      href: '/dashboard/prodotti',
+      icon: Package,
+      done: prodotti > 0,
+      cta: prodotti > 0 ? `${prodotti} prodotti` : 'Carica prodotti',
+    },
+    {
+      step: '03',
+      title: 'Strategia & piano',
+      input: 'Obiettivo, periodo, canali, qualità',
+      output: 'Calendario con idee e brief',
+      href: '/dashboard/piano',
+      icon: Workflow,
+      done: daApprovare + inCoda + pubblicati7g > 0,
+      cta: 'Genera piano',
+    },
+    {
+      step: '04',
+      title: 'Produzione contenuti',
+      input: 'Template, asset, qualità pacchetto',
+      output: 'Post/reel/story/carousel/blog completi',
+      href: '/dashboard/social/instagram',
+      icon: ImagePlus,
+      done: daApprovare > 0 || inCoda > 0 || pubblicati7g > 0,
+      cta: 'Crea contenuti',
+    },
+    {
+      step: '05',
+      title: 'Revisione cliente',
+      input: 'Preview, score AI, link approvazione',
+      output: 'Contenuti approvati o da correggere',
+      href: '/dashboard/calendario?filter=DA_APPROVARE',
+      icon: ShieldCheck,
+      done: daApprovare === 0 && (inCoda > 0 || pubblicati7g > 0),
+      attention: daApprovare > 0,
+      cta: daApprovare > 0 ? `${daApprovare} da approvare` : 'Tutto revisionato',
+    },
+    {
+      step: '06',
+      title: 'Pubblicazione',
+      input: 'APPROVATO, media validi, Blotato',
+      output: 'Post schedulati/pubblicati e log',
+      href: '/dashboard/log',
+      icon: Megaphone,
+      done: pubblicati7g > 0,
+      attention: errori > 0,
+      cta: errori > 0 ? `${errori} errori` : 'Controlla log',
+    },
+    {
+      step: '07',
+      title: 'Report & rinnovo',
+      input: 'KPI, log, contenuti migliori',
+      output: 'PDF cliente e prossime azioni',
+      href: '/dashboard/report',
+      icon: BarChart3,
+      done: pubblicati7g > 0,
+      cta: 'Crea report',
+    },
+  ]
+
+  const nextStep = productionFlow.find(step => step.attention || !step.done) || productionFlow[productionFlow.length - 1]
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto">
@@ -142,9 +229,9 @@ export default async function DashboardPage() {
               Neon/Postgres, API e frontend sono allineati sul prossimo obiettivo: generare, approvare e preparare la pubblicazione dei contenuti senza perdere visibilità sui job.
             </p>
             <div className="flex flex-wrap gap-3 mt-5">
-              <Link href="/dashboard/piano" className="btn-primary">
+              <Link href={nextStep.href} className="btn-primary">
                 <Rocket className="w-4 h-4" />
-                Genera piano
+                Prossimo step: {nextStep.cta}
               </Link>
               <Link href="/dashboard/calendario?filter=DA_APPROVARE" className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-white text-sm font-medium rounded-lg hover:bg-white/15 transition-colors">
                 <ShieldCheck className="w-4 h-4" />
@@ -195,20 +282,108 @@ export default async function DashboardPage() {
         ))}
       </div>
 
+      {/* Ciclo produzione collegato */}
+      <div className="card p-4 md:p-6 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+          <div>
+            <h2 className="font-semibold text-gray-900">Ciclo produzione contenuti</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Ogni servizio prende l&apos;output dello step precedente: niente pezzi scollegati, solo flusso operativo.
+            </p>
+          </div>
+          <Link href="/dashboard/setup" className="btn-secondary text-xs py-2 px-3 self-start md:self-auto">
+            <ShieldCheck className="w-4 h-4" />
+            Setup produzione
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-3">
+          {productionFlow.map(({ step, title, input, output, href, icon: Icon, done, attention, cta }, index) => (
+            <Link
+              key={step}
+              href={href}
+              className={`relative rounded-2xl border p-4 transition-all hover:-translate-y-0.5 hover:shadow-md ${
+                attention
+                  ? 'border-amber-200 bg-amber-50'
+                  : done
+                    ? 'border-emerald-100 bg-emerald-50/60'
+                    : 'border-gray-100 bg-white'
+              }`}
+            >
+              {index < productionFlow.length - 1 && (
+                <ChevronRight className="hidden xl:block absolute -right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 bg-white rounded-full" />
+              )}
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="text-[10px] font-bold text-gray-400">{step}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                  attention
+                    ? 'bg-amber-100 text-amber-700'
+                    : done
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {attention ? 'azione' : done ? 'ok' : 'setup'}
+                </span>
+              </div>
+              <Icon className={`w-5 h-5 mb-3 ${attention ? 'text-amber-600' : done ? 'text-emerald-600' : 'text-brand-600'}`} />
+              <h3 className="text-sm font-bold text-gray-900">{title}</h3>
+              <p className="text-[11px] text-gray-500 mt-2">
+                <span className="font-semibold text-gray-700">Input:</span> {input}
+              </p>
+              <p className="text-[11px] text-gray-500 mt-1">
+                <span className="font-semibold text-gray-700">Output:</span> {output}
+              </p>
+              <p className="text-xs font-semibold text-brand-600 mt-3">{cta} →</p>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div className="card p-4 md:p-6 mb-6 border-slate-200 bg-gradient-to-br from-slate-950 to-slate-900 text-white">
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-5">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-emerald-100 mb-3">
+              <Workflow className="w-3.5 h-3.5" />
+              Sistema operativo contenuti
+            </div>
+            <h2 className="text-lg md:text-xl font-bold">Ciclo generazione → ottimizzazione</h2>
+            <p className="text-sm text-slate-300 mt-1 max-w-3xl">
+              Ogni contenuto nasce da brand identity e asset cliente, viene prodotto con template, controllato con score e torna nel report come apprendimento per il ciclo successivo.
+            </p>
+          </div>
+          <Link href="/dashboard/social/instagram" className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-slate-100 transition-colors self-start lg:self-auto">
+            <Sparkles className="w-4 h-4 text-brand-600" />
+            Avvia generazione
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+          {GENERATION_OPTIMIZATION_CYCLE.map((stage, index) => (
+            <div key={stage.id} className="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <span className="text-[10px] font-bold text-emerald-200">0{index + 1}</span>
+              <h3 className="font-semibold text-white mt-2">{stage.title}</h3>
+              <p className="text-[11px] text-slate-300 mt-2">
+                <span className="text-slate-100">Output:</span> {stage.output}
+              </p>
+              <p className="text-[11px] text-emerald-100/90 mt-2">{stage.qualityGate}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 mb-6">
         <div className="lg:col-span-2 card p-6">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h2 className="font-semibold text-gray-900">Pipeline immediata</h2>
-              <p className="text-sm text-gray-500 mt-1">Le tre mosse che portano il prodotto da demo a produzione.</p>
+              <h2 className="font-semibold text-gray-900">Servizi collegati</h2>
+              <p className="text-sm text-gray-500 mt-1">Come vendere ed erogare il servizio senza buchi operativi.</p>
             </div>
             <Link href="/api/system/health" className="text-sm text-brand-600 hover:underline">Health JSON →</Link>
           </div>
           <div className="grid md:grid-cols-3 gap-3">
             {[
-              { step: '01', title: 'DB operativo', text: 'Esegui la migration 004 su Neon per job ed eventi.' },
-              { step: '02', title: 'Backend osservabile', text: 'Usa /api/system/health come check deploy.' },
-              { step: '03', title: 'Publish bridge', text: 'Collega APPROVATO a Blotato o webhook custom.' },
+              { step: 'A', title: 'Pacchetto → qualità', text: 'Il piano cliente governa profondità AI, numero contenuti e report.' },
+              { step: 'B', title: 'Asset → template', text: 'Immagini cliente e prodotti alimentano layout, brief e media finali.' },
+              { step: 'C', title: 'Report → rinnovo', text: 'Ogni mese chiude con KPI, insight e azioni del mese successivo.' },
             ].map(item => (
               <div key={item.step} className="rounded-2xl border border-gray-100 bg-gradient-to-br from-white to-gray-50 p-4">
                 <span className="text-xs font-bold text-brand-600">{item.step}</span>

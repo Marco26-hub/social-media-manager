@@ -14,6 +14,8 @@ import {
   summarizeQualityForPrompt,
   isQualityDowngraded,
 } from '@/lib/content-quality'
+import { getClientGenerationContext } from '@/lib/client-context'
+import { buildGenerationOptimizationCyclePrompt, normalizeProductionCycleStage } from '@/lib/production-cycle'
 
 const PROMPT_WEEKLY = `Agisci come Social Media Manager senior per brand abbigliamento e-commerce.
 Crea piano editoriale SETTIMANALE (7 giorni) per {{PIATTAFORME}}.
@@ -56,10 +58,13 @@ export async function POST(request: Request) {
   try {
     await requireAuth()
     const { cliente_id, piattaforme, obiettivo, model, openrouter_key, periodo, quality, quality_level, post_quality, qualita } = await request.json()
-    if (!cliente_id || !piattaforme?.length) {
-      return NextResponse.json({ error: 'cliente_id e piattaforme richiesti' }, { status: 400 })
+    if (!piattaforme?.length) {
+      return NextResponse.json({ error: 'piattaforme richieste' }, { status: 400 })
     }
-    await requireClienteAccess(cliente_id)
+    const clientContext = await getClientGenerationContext(cliente_id)
+    const effectiveClienteId = clientContext.clienteId
+    if (!effectiveClienteId) return NextResponse.json({ error: 'Nessun cliente selezionato' }, { status: 400 })
+    await requireClienteAccess(effectiveClienteId)
     const requestedQuality = quality ?? quality_level ?? post_quality ?? qualita
     if (isDemo() || !dbReady()) {
       const demoQuality = resolveContentQuality({ requestedQuality })
@@ -76,9 +81,9 @@ export async function POST(request: Request) {
     }
 
     const [brandRows, products, clientRows] = await Promise.all([
-      q('SELECT * FROM brand WHERE cliente_id = $1 LIMIT 1', [cliente_id]),
-      q('SELECT * FROM prodotti WHERE cliente_id = $1', [cliente_id]),
-      q('SELECT * FROM clienti WHERE id = $1 LIMIT 1', [cliente_id]),
+      q('SELECT * FROM brand WHERE cliente_id = $1 LIMIT 1', [effectiveClienteId]),
+      q('SELECT * FROM prodotti WHERE cliente_id = $1', [effectiveClienteId]),
+      q('SELECT * FROM clienti WHERE id = $1 LIMIT 1', [effectiveClienteId]),
     ])
     const brand = brandRows[0] ?? null
     const client = (clientRows[0] ?? null) as Record<string, unknown> | null
@@ -93,6 +98,7 @@ ${summarizeQualityForPrompt(contentQuality)}
 
 Per ogni contenuto del piano NON limitarti a idea/caption: includi anche audience_segment, funnel_stage, angle, primary_message, proof_points, hook_variants, cta_variants, creative_brief, template_id, template_style, layout_spec, asset_requirements, production_notes, compliance_notes, risk_flags, platform_best_practices, ab_variants, kpi_target, expected_outcome, missing_inputs, content_checklist.
 Per Reel/Short/Video includi scenes con timing. Per Story includi frames o scenes. Per Carousel includi slides.
+${buildGenerationOptimizationCyclePrompt(contentQuality)}
 Schema operativo extra per ogni item:
 ${buildExtendedOutputSchema()}
 `
@@ -108,7 +114,7 @@ ${buildExtendedOutputSchema()}
       systemPrompt: `Sei un social media manager e creative strategist senior. Obiettivo: ${obiettivo || 'mix'}. Livello qualità: ${contentQuality}. Rispondi con JSON array valido, nessun altro testo. Non inventare prezzi, stock o claim non presenti nei dati.`,
       userPrompt,
       openrouterKey: openrouter_key,
-      maxTokens: contentQuality === 'high' ? 12000 : contentQuality === 'medium' ? 9500 : 8000,
+      maxTokens: contentQuality === 'high' ? 6000 : contentQuality === 'medium' ? 4500 : 3000,
     })
 
     const items = extractJSONArray(aiRes) as Record<string, unknown>[]
@@ -127,10 +133,12 @@ ${buildExtendedOutputSchema()}
         'proof_points', 'hook_variants', 'caption_long', 'cta_variants', 'creative_brief',
         'template_id', 'template_style', 'layout_spec_json', 'asset_requirements_json',
         'production_notes', 'compliance_notes', 'risk_flags', 'platform_best_practices',
-        'ab_variants_json', 'kpi_target', 'expected_outcome', 'missing_inputs', 'content_checklist',
+        'ab_variants_json', 'kpi_target', 'expected_outcome', 'production_cycle_stage',
+        'optimization_cycle_json', 'performance_hypothesis', 'next_iteration_actions',
+        'missing_inputs', 'content_checklist',
       ]
       const insertValues = [
-        cliente_id,
+        effectiveClienteId,
         id_contenuto,
         item.data_pubblicazione || null,
         item.ora_pubblicazione || '10:00',
@@ -174,6 +182,10 @@ ${buildExtendedOutputSchema()}
         jsonbParam(pickJson(item, ['ab_variants', 'ab_variants_json', 'varianti_ab'])),
         pickText(item, ['kpi_target', 'kpi_primario']) || null,
         pickText(item, ['expected_outcome', 'risultato_atteso']) || null,
+        normalizeProductionCycleStage(pickText(item, ['production_cycle_stage', 'cycle_stage', 'fase_ciclo']), 'brief'),
+        jsonbParam(pickJson(item, ['optimization_cycle', 'optimization_cycle_json', 'ciclo_ottimizzazione'])),
+        pickText(item, ['performance_hypothesis', 'ipotesi_performance', 'hypothesis']) || null,
+        jsonbParam(pickJson(item, ['next_iteration_actions', 'azioni_prossima_iterazione', 'next_actions'])),
         jsonbParam(pickJson(item, ['missing_inputs', 'input_mancanti'])),
         jsonbParam(pickJson(item, ['content_checklist', 'checklist'])),
       ]

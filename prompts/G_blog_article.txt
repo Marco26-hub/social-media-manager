@@ -37,6 +37,8 @@ Regole GEO (AI engine optimization):
 - Citazioni interne con anchor descrittive
 - Non inventare fonti esterne, statistiche o claim: se mancano dati, scrivi missing_inputs
 - Aggiungi angle_editoriale, search_intent, audience_segment, proof_points e conversion_path
+- Aggiungi performance_hypothesis, optimization_cycle e next_iteration_actions
+- Il blog deve dire cosa misurare dopo pubblicazione: impression organiche, CTR interno, lead, ranking o citazioni AI
 
 Regole stile:
 - Tono brand coerente
@@ -71,6 +73,15 @@ Schema:
   "audience_segment": "Segmento audience",
   "proof_points": ["prova verificabile"],
   "conversion_path": "Percorso da lettura a prodotto/lead",
+  "performance_hypothesis": "Perché questo articolo dovrebbe funzionare",
+  "optimization_cycle": {
+    "hypothesis": "",
+    "metric_to_watch": "",
+    "learning_signal": "",
+    "next_test": "",
+    "fallback_action": ""
+  },
+  "next_iteration_actions": ["azione concreta 1", "azione concreta 2", "azione concreta 3"],
   "content_checklist": ["SEO", "GEO", "accessibilità"],
   "missing_inputs": [],
   "tempo_lettura_min": 5,

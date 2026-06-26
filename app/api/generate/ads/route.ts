@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { callAI, extractJSON } from '@/lib/ai'
 import { requireAuth } from '@/lib/auth-utils'
 import { resolveContentQuality, summarizeQualityForPrompt } from '@/lib/content-quality'
+import { getClientGenerationContext, mergeBrandIdentity } from '@/lib/client-context'
 
 const PROMPTS: Record<string, string> = {
   google: `Sei un Google Ads specialist senior. Crea una campagna pubblicitaria completa per questo brand.
@@ -103,18 +104,20 @@ Output SOLO JSON valido:
 export async function POST(request: Request) {
   try {
     await requireAuth()
-    const { platform, brand, product, obiettivo, budget, model, openrouter_key, quality, quality_level, post_quality, qualita } = await request.json()
-    if (!platform || !brand) {
-      return NextResponse.json({ error: 'platform e brand richiesti' }, { status: 400 })
+    const { cliente_id, platform, brand, product, obiettivo, budget, model, openrouter_key, quality, quality_level, post_quality, qualita } = await request.json()
+    if (!platform) {
+      return NextResponse.json({ error: 'platform richiesto' }, { status: 400 })
     }
 
     const prompt = PROMPTS[platform]
     if (!prompt) return NextResponse.json({ error: `Platform ${platform} non supportata` }, { status: 400 })
+    const clientContext = await getClientGenerationContext(cliente_id)
+    const brandIdentity = mergeBrandIdentity(clientContext, brand)
     const contentQuality = resolveContentQuality({ requestedQuality: quality ?? quality_level ?? post_quality ?? qualita })
 
     const userPrompt = prompt
-      .replace('{{BRAND}}', JSON.stringify(brand, null, 2))
-      .replace('{{PRODOTTO}}', product || 'Prodotto principale')
+      .replace('{{BRAND}}', JSON.stringify(brandIdentity, null, 2))
+      .replace('{{PRODOTTO}}', product || JSON.stringify(clientContext.prodotti.slice(0, 5), null, 2) || 'Prodotto principale')
       .replace('{{OBIETTIVO}}', obiettivo || 'conversion')
       .replace('{{BUDGET}}', budget || 'Da definire')
       .replace('{{QUALITY_CONTEXT}}', summarizeQualityForPrompt(contentQuality))
@@ -134,7 +137,7 @@ export async function POST(request: Request) {
     })
 
     const parsed = extractJSON(aiRes) as Record<string, unknown>
-    return NextResponse.json({ platform, ...parsed })
+    return NextResponse.json({ cliente_id: clientContext.clienteId, brand_source: clientContext.source, platform, ...parsed })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }

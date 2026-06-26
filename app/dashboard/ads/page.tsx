@@ -120,6 +120,7 @@ export default function AdsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          cliente_id: clienteId,
           platform,
           brand,
           product: productName,

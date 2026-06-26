@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback, Suspense, useRef } from 'react'
 import StatusBadge from '@/components/StatusBadge'
 import type { Contenuto, Status } from '@/lib/types'
-import { CheckCircle, XCircle, RefreshCw, Eye, ChevronDown, Filter, Sparkles, Share2 } from 'lucide-react'
+import { CheckCircle, XCircle, RefreshCw, Eye, ChevronDown, Filter, Sparkles, Share2, Download, Trash2, AlertTriangle } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { demoContenuti } from '@/lib/demo-data'
@@ -17,6 +17,16 @@ const CANALI = ['tutti','instagram','facebook','tiktok','pinterest','youtube_sho
 const STATI: Status[] = ['DA_APPROVARE','BOZZA','IDEA','APPROVATO','IN_PUBBLICAZIONE','PUBBLICATO','ERRORE','ERRORE_MANUALE']
 const CANALE_ICON: Record<string, string> = {
   instagram: '📸', facebook: '🔵', tiktok: '🎵', pinterest: '📌', youtube_shorts: '▶️'
+}
+
+function asText(value: unknown) {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number') return String(value)
+  return ''
+}
+
+function hasText(value: unknown) {
+  return asText(value).trim().length > 0
 }
 
 export default function CalendarioPage() {
@@ -44,6 +54,10 @@ function CalendarioInner() {
   const [dragItem, setDragItem]     = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [dragOverDate, setDragOverDate] = useState<string | null>(null)
+  const [backuping, setBackuping] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Contenuto | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [adminError, setAdminError] = useState<string | null>(null)
   const demo = useRuntimeDemo()
 
   const clienteId = readClienteId()
@@ -141,6 +155,51 @@ function CalendarioInner() {
     setSaving(null)
   }
 
+  async function downloadBackup() {
+    setBackuping(true)
+    setAdminError(null)
+    try {
+      const res = await fetch('/api/data/backup', { cache: 'no-store' })
+      if (!res.ok) throw new Error(await readApiError(res, 'Backup contenuti fallito'))
+      const blob = await res.blob()
+      const disposition = res.headers.get('content-disposition') || ''
+      const match = disposition.match(/filename="([^"]+)"/)
+      const filename = match?.[1] || `social-automation-backup-${new Date().toISOString().slice(0, 10)}.json`
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setAdminError((e as Error).message)
+    } finally {
+      setBackuping(false)
+    }
+  }
+
+  async function deleteContent(c: Contenuto) {
+    setDeleting(true)
+    setAdminError(null)
+    try {
+      if (demo) {
+        setDemoData(prev => prev.filter(item => item.id !== c.id))
+      } else {
+        const res = await fetch(`/api/data/calendario?id=${encodeURIComponent(c.id)}`, { method: 'DELETE' })
+        if (!res.ok) throw new Error(await readApiError(res, 'Cancellazione contenuto fallita'))
+        setContenuti(prev => prev.filter(item => item.id !== c.id))
+      }
+      if (selected?.id === c.id) setSelected(null)
+      setDeleteTarget(null)
+    } catch (e) {
+      setAdminError((e as Error).message)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   async function handleScore(c: Contenuto) {
     setScoring(c.id)
     setScoreError(null)
@@ -172,6 +231,7 @@ function CalendarioInner() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          cliente_id: clienteId,
           canale: c.canale,
           formato: c.formato,
           hook: c.hook,
@@ -186,6 +246,9 @@ function CalendarioInner() {
           primary_message: c.primary_message,
           creative_brief: c.creative_brief,
           kpi_target: c.kpi_target,
+          performance_hypothesis: c.performance_hypothesis,
+          optimization_cycle: c.optimization_cycle_json,
+          next_iteration_actions: c.next_iteration_actions,
           production_notes: c.production_notes,
           compliance_notes: c.compliance_notes,
           ...aiSettings,
@@ -258,15 +321,21 @@ function CalendarioInner() {
           <h1 className="text-xl md:text-2xl font-bold text-gray-900">Calendario</h1>
           <p className="text-xs md:text-sm text-gray-500 mt-0.5">{contenuti.length} contenuti</p>
         </div>
-        <button onClick={fetchData} className="btn-secondary py-1.5 px-3">
-          <RefreshCw className="w-4 h-4" />
-          <span className="hidden md:inline">Aggiorna</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={downloadBackup} disabled={backuping} className="btn-secondary py-1.5 px-3">
+            {backuping ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            <span className="hidden md:inline">Backup</span>
+          </button>
+          <button onClick={fetchData} className="btn-secondary py-1.5 px-3">
+            <RefreshCw className="w-4 h-4" />
+            <span className="hidden md:inline">Aggiorna</span>
+          </button>
+        </div>
       </div>
 
-      {scoreError && (
+      {(scoreError || adminError) && (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          AI scoring: {scoreError}
+          {scoreError ? `AI scoring: ${scoreError}` : adminError}
         </div>
       )}
 
@@ -429,6 +498,13 @@ function CalendarioInner() {
                     <span className="hidden md:inline text-xs">Preview</span>
                   </Link>
                   <button
+                    onClick={() => setSelected(c)}
+                    className="btn-secondary py-1.5 px-2 md:px-3 justify-center"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline text-xs">Dettagli</span>
+                  </button>
+                  <button
                     onClick={() => handleScore(c)}
                     disabled={scoring === c.id}
                     className={`py-1.5 px-2 md:px-3 justify-center rounded-lg text-xs font-medium transition-colors ${
@@ -460,6 +536,14 @@ function CalendarioInner() {
                       <span className="hidden md:inline">Riprova</span>
                     </button>
                   )}
+                  <button
+                    onClick={() => setDeleteTarget(c)}
+                    disabled={saving === c.id}
+                    className="py-1.5 px-2 md:px-3 justify-center rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors"
+                    title="Cancella contenuto admin"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -493,32 +577,32 @@ function CalendarioInner() {
               </div>
 
               {/* Contenuto */}
-              {selected.hook && (
+              {hasText(selected.hook) && (
                 <div>
                   <p className="label">Hook</p>
-                  <p className="text-sm text-gray-800 font-medium">{selected.hook}</p>
+                  <p className="text-sm text-gray-800 font-medium">{asText(selected.hook)}</p>
                 </div>
               )}
-              {selected.caption && (
+              {hasText(selected.caption) && (
                 <div>
                   <p className="label">Caption</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{selected.caption}</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{asText(selected.caption)}</p>
                 </div>
               )}
-              {selected.hashtag && (
+              {hasText(selected.hashtag) && (
                 <div>
                   <p className="label">Hashtag</p>
-                  <p className="text-sm text-brand-600">{selected.hashtag}</p>
+                  <p className="text-sm text-brand-600">{asText(selected.hashtag)}</p>
                 </div>
               )}
-              {selected.cta && (
+              {hasText(selected.cta) && (
                 <div>
                   <p className="label">CTA</p>
-                  <p className="text-sm text-gray-700">{selected.cta}</p>
+                  <p className="text-sm text-gray-700">{asText(selected.cta)}</p>
                 </div>
               )}
 
-              {(selected.angle || selected.audience_segment || selected.funnel_stage || selected.kpi_target || selected.primary_message || selected.creative_brief || selected.template_id || selected.template_style || selected.production_notes || selected.compliance_notes || selected.expected_outcome) && (
+              {Boolean(selected.angle || selected.audience_segment || selected.funnel_stage || selected.kpi_target || selected.primary_message || selected.creative_brief || selected.template_id || selected.template_style || selected.production_notes || selected.compliance_notes || selected.expected_outcome || selected.production_cycle_stage || selected.performance_hypothesis || selected.optimization_cycle_json || selected.next_iteration_actions) && (
                 <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-4">
                   <p className="text-sm font-bold text-violet-900 mb-3">Strategia operativa</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
@@ -529,12 +613,14 @@ function CalendarioInner() {
                       { label: 'KPI', value: selected.kpi_target },
                       { label: 'Messaggio', value: selected.primary_message },
                       { label: 'Outcome', value: selected.expected_outcome },
+                      { label: 'Ciclo', value: selected.production_cycle_stage },
+                      { label: 'Ipotesi', value: selected.performance_hypothesis },
                       { label: 'Template', value: selected.template_id },
                       { label: 'Stile', value: selected.template_style },
                     ].filter(item => Boolean(item.value)).map(item => (
                       <div key={item.label} className="bg-white rounded-lg p-2 border border-violet-100">
                         <p className="text-[10px] uppercase text-violet-500 font-bold">{item.label}</p>
-                        <p className="text-xs text-gray-800 mt-0.5">{item.value}</p>
+                        <p className="text-xs text-gray-800 mt-0.5">{asText(item.value)}</p>
                       </div>
                     ))}
                   </div>
@@ -556,6 +642,22 @@ function CalendarioInner() {
                         <div className="bg-white rounded-lg p-2 border border-violet-100">
                           <p className="text-[10px] uppercase text-violet-600 font-bold">Asset richiesti</p>
                           <pre className="text-[10px] text-violet-900 whitespace-pre-wrap font-mono mt-1">{JSON.stringify(selected.asset_requirements_json, null, 2)}</pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {Boolean(selected.optimization_cycle_json || selected.next_iteration_actions) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                      {Boolean(selected.optimization_cycle_json) && (
+                        <div className="bg-white rounded-lg p-2 border border-violet-100">
+                          <p className="text-[10px] uppercase text-violet-600 font-bold">Ottimizzazione</p>
+                          <pre className="text-[10px] text-violet-900 whitespace-pre-wrap font-mono mt-1">{JSON.stringify(selected.optimization_cycle_json, null, 2)}</pre>
+                        </div>
+                      )}
+                      {Boolean(selected.next_iteration_actions) && (
+                        <div className="bg-white rounded-lg p-2 border border-violet-100">
+                          <p className="text-[10px] uppercase text-violet-600 font-bold">Prossime azioni</p>
+                          <pre className="text-[10px] text-violet-900 whitespace-pre-wrap font-mono mt-1">{JSON.stringify(selected.next_iteration_actions, null, 2)}</pre>
                         </div>
                       )}
                     </div>
@@ -636,6 +738,7 @@ function CalendarioInner() {
                       { k: 'conversion_path', l: 'Funnel' },
                       { k: 'accessibility', l: 'Access' },
                       { k: 'compliance', l: 'Regole' },
+                      { k: 'optimization_readiness', l: 'Itera' },
                     ].map(({ k, l }) => {
                       const rawValue = scores[selected.id][k]
                       const val = typeof rawValue === 'number' ? rawValue : 0
@@ -756,6 +859,43 @@ function CalendarioInner() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => !deleting && setDeleteTarget(null)}>
+          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="font-bold text-gray-900">Cancellare contenuto?</h2>
+                <p className="text-xs text-gray-500">{deleteTarget.id_contenuto} · {deleteTarget.canale} · {deleteTarget.formato}</p>
+              </div>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-gray-700">
+                Questa azione elimina il contenuto dal calendario e rimuove eventuali token di approvazione collegati. Prima puoi scaricare un backup JSON.
+              </p>
+              <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                Se il contenuto è già pubblicato su social, questo cancella solo la copia interna della piattaforma.
+              </div>
+            </div>
+            <div className="p-5 border-t flex gap-3">
+              <button onClick={() => setDeleteTarget(null)} disabled={deleting} className="btn-secondary flex-1 justify-center">
+                Annulla
+              </button>
+              <button
+                onClick={() => deleteContent(deleteTarget)}
+                disabled={deleting}
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold py-2 px-4 rounded-lg text-sm flex items-center justify-center gap-2"
+              >
+                {deleting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {deleting ? 'Cancello...' : 'Cancella'}
+              </button>
+            </div>
           </div>
         </div>
       )}

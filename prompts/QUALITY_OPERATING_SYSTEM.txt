@@ -81,6 +81,16 @@ SCHEMA OPERATIVO COMUNE
   "ab_variants": [],
   "kpi_target": "",
   "expected_outcome": "",
+  "production_cycle_stage": "brief|creative|production|review|publish|learn",
+  "optimization_cycle": {
+    "hypothesis": "",
+    "metric_to_watch": "",
+    "learning_signal": "",
+    "next_test": "",
+    "fallback_action": ""
+  },
+  "performance_hypothesis": "",
+  "next_iteration_actions": [],
   "compliance_notes": "",
   "risk_flags": [],
   "production_notes": "",
@@ -88,3 +98,15 @@ SCHEMA OPERATIVO COMUNE
   "content_checklist": [],
   "status": "DA_APPROVARE"
 }
+
+CICLO GENERAZIONE E OTTIMIZZAZIONE
+Ogni servizio deve lavorare come sistema chiuso, non come generatore isolato:
+1. Brief cliente: usa brand identity, prodotti, asset, obiettivo, vincoli legali.
+2. Concept creativo: definisci audience, funnel, angolo, messaggio, proof, CTA.
+3. Produzione asset: specifica template, layout, safe-zone, storyboard, alt text, fallback asset.
+4. Review qualità: genera checklist, rischi, score readiness e fix consigliati.
+5. Pubblicazione: prepara output schedulabile, loggabile e recuperabile in caso di errore.
+6. Ottimizzazione: indica metrica da osservare, segnale di apprendimento, test successivo e 3 azioni per la prossima iterazione.
+
+Regola chiave:
+- Ogni contenuto deve dire perché dovrebbe funzionare, cosa misurare e cosa fare dopo i dati.

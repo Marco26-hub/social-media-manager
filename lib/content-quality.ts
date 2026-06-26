@@ -1,3 +1,5 @@
+import { buildGenerationOptimizationCyclePrompt } from '@/lib/production-cycle'
+
 export type ContentQuality = 'soft' | 'medium' | 'high'
 
 export const CONTENT_QUALITY_OPTIONS: { value: 'auto' | ContentQuality; label: string; desc: string }[] = [
@@ -171,7 +173,9 @@ Regole anti-allucinazione:
 - Se un dato manca, mettilo in missing_inputs e usa un fallback sicuro.
 - Ogni CTA deve essere compatibile con canale, funnel e disponibilità link.
 - Ogni contenuto deve includere accessibility/alt text e note compliance.
-- Ogni contenuto deve proporre un template/layout producibile, con asset necessari e formato esatto.`
+- Ogni contenuto deve proporre un template/layout producibile, con asset necessari e formato esatto.
+
+${buildGenerationOptimizationCyclePrompt(args.quality)}`
 }
 
 export function buildExtendedOutputSchema(): string {
@@ -207,6 +211,16 @@ export function buildExtendedOutputSchema(): string {
   "ab_variants": [{"nome":"A","ipotesi":"","hook":"","cta":"","differenza_creativa":""}],
   "kpi_target": "metrica primaria da monitorare",
   "expected_outcome": "ipotesi di risultato realistica, non promessa",
+  "production_cycle_stage": "brief|creative|production|review|publish|learn",
+  "optimization_cycle": {
+    "hypothesis": "ipotesi da validare",
+    "metric_to_watch": "metrica primaria",
+    "learning_signal": "segnale che indica successo o problema",
+    "next_test": "test successivo consigliato",
+    "fallback_action": "cosa fare se asset/dati/performance mancano"
+  },
+  "performance_hypothesis": "perché questo contenuto dovrebbe funzionare",
+  "next_iteration_actions": ["azione concreta 1", "azione concreta 2", "azione concreta 3"],
   "compliance_notes": "note legali/claim/privacy/accessibilità",
   "risk_flags": ["rischio o controllo necessario"],
   "production_notes": "cosa serve per produrre/pubblicare bene",

@@ -56,3 +56,21 @@ export async function requireClienteAccess(clienteId?: string): Promise<string> 
   if (!rows.length) throw new Error('Accesso cliente negato')
   return id
 }
+
+export async function requireAdmin() {
+  const user = await requireAuth()
+
+  if (isDemo() || !dbReady()) return user
+
+  const rows = await q(
+    `SELECT ruolo_globale
+     FROM profiles
+     WHERE id = $1
+       AND ruolo_globale IN ('super_admin','admin')
+     LIMIT 1`,
+    [user.id],
+  )
+
+  if (!rows.length) throw new Error('Operazione riservata ad admin')
+  return user
+}

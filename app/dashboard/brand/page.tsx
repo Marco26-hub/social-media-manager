@@ -232,7 +232,7 @@ export default function BrandPage() {
       const aiSettings = readAISettings()
       const res = await fetch('/api/generate/brand-keywords', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand: brand || {}, settore, target, tono, ...aiSettings }),
+        body: JSON.stringify({ cliente_id: clienteId, brand: brand || {}, settore, target, tono, ...aiSettings }),
       })
       if (!res.ok) throw new Error(await readApiError(res, 'Generazione keyword fallita'))
       const data = await res.json()
@@ -282,7 +282,7 @@ export default function BrandPage() {
       const url = (brand as Record<string, string>)?.sito_url || ''
       const res = await fetch('/api/generate/compliance', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand: brand || {}, settore, url, target, ...aiSettings }),
+        body: JSON.stringify({ cliente_id: clienteId, brand: brand || {}, settore, url, target, ...aiSettings }),
       })
       if (!res.ok) throw new Error(await readApiError(res, 'Generazione compliance fallita'))
       const data = await res.json()

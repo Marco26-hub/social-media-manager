@@ -125,23 +125,32 @@ async function callOpenRouter(
   userPrompt: string,
   key: string,
   maxTokens: number,
+  timeout = 60000,
 ): Promise<string> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeout)
+
   const messages: { role: string; content: string }[] = []
   if (systemPrompt) messages.push({ role: 'system', content: systemPrompt })
   messages.push({ role: 'user', content: userPrompt })
 
-  const res = await fetch(OPENROUTER_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${key}`,
-      'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
-    },
-    body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
-  })
-  if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => '')}`)
-  const data = await res.json()
-  return data.choices?.[0]?.message?.content || ''
+  try {
+    const res = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${key}`,
+        'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
+    })
+    if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => '')}`)
+    const data = await res.json()
+    return data.choices?.[0]?.message?.content || ''
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 async function callAnthropic(
@@ -150,25 +159,34 @@ async function callAnthropic(
   userPrompt: string,
   key: string,
   maxTokens: number,
+  timeout = 60000,
 ): Promise<string> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeout)
+
   const messages: { role: string; content: string }[] = [
     { role: 'user', content: userPrompt },
   ]
   const body: Record<string, unknown> = { model, max_tokens: maxTokens, messages }
   if (systemPrompt) body.system = systemPrompt
 
-  const res = await fetch(ANTHROPIC_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => '')}`)
-  const data = await res.json()
-  return data.content?.[0]?.text || ''
+  try {
+    const res = await fetch(ANTHROPIC_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+      },
+      signal: controller.signal,
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => '')}`)
+    const data = await res.json()
+    return data.content?.[0]?.text || ''
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export function extractJSON(text: string): unknown {
