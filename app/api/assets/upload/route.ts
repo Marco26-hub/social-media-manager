@@ -4,6 +4,7 @@ import path from 'path'
 import { NextResponse } from 'next/server'
 import { requireAuth, requireClienteAccess } from '@/lib/auth-utils'
 import { getPublicBaseUrl } from '@/lib/base-url'
+import { apiError } from '@/lib/api-error'
 
 export const runtime = 'nodejs'
 
@@ -63,7 +64,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true, assets: uploaded })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Upload fallito'
-    return NextResponse.json({ error: msg }, { status: 500 })
+    return apiError(e)
   }
 }
