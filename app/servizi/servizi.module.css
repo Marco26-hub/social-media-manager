@@ -698,6 +698,24 @@
   font-size: 14px;
 }
 
+.footerAdmin {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 18, 14, 0.16);
+  color: rgba(16, 18, 14, 0.72);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.footerAdmin:hover {
+  border-color: rgba(16, 18, 14, 0.32);
+  color: var(--ink);
+}
+
 @media (max-width: 1100px) {
   .hero,
   .problemSection,

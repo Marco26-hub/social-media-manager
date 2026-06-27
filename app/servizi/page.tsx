@@ -22,8 +22,8 @@ import {
 import styles from './servizi.module.css'
 
 // ⚙️ CONFIG CONTATTI — cambia questi 3 valori col tuo numero/email/demo reali
-const WHATSAPP_NUMERO = '39XXXXXXXXXX' // es. 393331234567 (prefisso 39, no +, no spazi)
-const EMAIL_CONTATTO = 'softipost@gmail.com'
+const WHATSAPP_NUMERO = '393477196603' // prefisso 39, no +, no spazi
+const EMAIL_CONTATTO = 'swsdautomation@gmail.com'
 const DEMO_URL = 'https://social-media-manager-zte4.onrender.com/login'
 
 function waLink(messaggio: string) {
@@ -345,6 +345,9 @@ export default function ServiziPage() {
           <span>Social Automation</span>
         </div>
         <span>Servizio gestito per sito, e-commerce e social automation.</span>
+        <Link href="/login" className={styles.footerAdmin} aria-label="Apri area admin">
+          <LockKeyhole size={15} /> Apri admin
+        </Link>
       </footer>
     </main>
   )
