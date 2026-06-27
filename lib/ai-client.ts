@@ -4,14 +4,20 @@ export const DEFAULT_AI_MODEL = 'meta-llama/llama-3.3-70b-instruct:free'
 
 export function readAISettings() {
   if (typeof window === 'undefined') {
-    return { model: DEFAULT_AI_MODEL, openrouter_key: undefined as string | undefined }
+    return {
+      model: DEFAULT_AI_MODEL,
+      openrouter_key: undefined as string | undefined,
+      gemini_key: undefined as string | undefined,
+    }
   }
 
   const model = localStorage.getItem('ai_model') || DEFAULT_AI_MODEL
   const openrouterKey = localStorage.getItem('openrouter_key')?.trim()
+  const geminiKey = localStorage.getItem('gemini_key')?.trim()
   return {
     model,
     openrouter_key: openrouterKey || undefined,
+    gemini_key: geminiKey || undefined,
   }
 }
 

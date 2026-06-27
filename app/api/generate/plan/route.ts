@@ -82,7 +82,7 @@ async function insertCalendario(columns: string[], values: unknown[], retryColum
 export async function POST(request: Request) {
   try {
     await requireAuth()
-    const { cliente_id, piattaforme, obiettivo, model, openrouter_key, periodo, quality, quality_level, post_quality, qualita } = await request.json()
+    const { cliente_id, piattaforme, obiettivo, model, openrouter_key, gemini_key, periodo, quality, quality_level, post_quality, qualita } = await request.json()
     if (!piattaforme?.length) {
       return NextResponse.json({ error: 'piattaforme richieste' }, { status: 400 })
     }
@@ -138,7 +138,7 @@ ${buildExtendedOutputSchema()}
       model: model || 'meta-llama/llama-3.3-70b-instruct:free',
       systemPrompt: `Sei un social media manager e creative strategist senior. Obiettivo: ${obiettivo || 'mix'}. Livello qualità: ${contentQuality}. Rispondi con JSON array valido, nessun altro testo. Non inventare prezzi, stock o claim non presenti nei dati.`,
       userPrompt,
-      openrouterKey: openrouter_key,
+      openrouterKey: openrouter_key, geminiKey: gemini_key,
       maxTokens: contentQuality === 'high' ? 8000 : contentQuality === 'medium' ? 6000 : 4000,
     })
 

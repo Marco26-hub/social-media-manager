@@ -5,7 +5,7 @@ import { Sparkles, Check, ChevronDown, Key, Zap, AlertCircle, Search, ThumbsUp }
 type Model = {
   id: string
   name: string
-  provider: 'anthropic' | 'openrouter'
+  provider: 'anthropic' | 'openrouter' | 'gemini'
   tier: 'default' | 'free' | 'paid'
   context: string
   speed: 'fast' | 'medium' | 'slow'
@@ -52,6 +52,11 @@ const MODELS: Model[] = [
   { id: 'meta-llama/llama-3.3-70b-instruct:free',   name: 'Llama 3.3 70B',                 provider: 'openrouter', tier: 'free', context: '128K', speed: 'fast',   quality: 'high', badge: 'Consigliato',    recommendedFor: ['piano-editoriale', 'seo-audit', 'blog-articolo', 'contenuti-social'] },
   { id: 'qwen/qwen-2.5-72b-instruct:free',          name: 'Qwen 2.5 72B',                  provider: 'openrouter', tier: 'free', context: '32K',  speed: 'medium', quality: 'high' },
   { id: 'mistralai/mistral-nemo:free',              name: 'Mistral Nemo',                  provider: 'openrouter', tier: 'free', context: '128K', speed: 'fast',   quality: 'medium' },
+
+  // Google Gemini (free tier, key gratuita su aistudio.google.com)
+  { id: 'gemini-2.0-flash',       name: 'Gemini 2.0 Flash',      provider: 'gemini', tier: 'free', context: '1M',   speed: 'fast',   quality: 'high', badge: 'Google · Free', recommendedFor: ['contenuti-social', 'piano-editoriale', 'seo-audit', 'blog-articolo'] },
+  { id: 'gemini-2.0-flash-lite',  name: 'Gemini 2.0 Flash Lite', provider: 'gemini', tier: 'free', context: '1M',   speed: 'fast',   quality: 'medium', badge: 'Google · Veloce' },
+  { id: 'gemini-1.5-flash',       name: 'Gemini 1.5 Flash',      provider: 'gemini', tier: 'free', context: '1M',   speed: 'fast',   quality: 'high', badge: 'Google' },
 ]
 
 const QUALITY_DOT: Record<string, string> = {
@@ -66,6 +71,9 @@ export default function AIModelSelector({ task }: { task?: Task }) {
   const [showKeyInput, setShowKeyInput] = useState(false)
   const [orKey, setOrKey] = useState('')
   const [savedKey, setSavedKey] = useState('')
+  const [showGemInput, setShowGemInput] = useState(false)
+  const [gemKey, setGemKey] = useState('')
+  const [savedGemKey, setSavedGemKey] = useState('')
   const [search, setSearch] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -75,6 +83,9 @@ export default function AIModelSelector({ task }: { task?: Task }) {
     const key = localStorage.getItem('openrouter_key') || ''
     setSavedKey(key)
     setOrKey(key)
+    const gk = localStorage.getItem('gemini_key') || ''
+    setSavedGemKey(gk)
+    setGemKey(gk)
   }, [task])
 
   useEffect(() => {
@@ -97,17 +108,25 @@ export default function AIModelSelector({ task }: { task?: Task }) {
   }
 
   function saveKey() {
-    localStorage.setItem('openrouter_key', orKey)
-    setSavedKey(orKey)
+    localStorage.setItem('openrouter_key', orKey.trim())
+    setSavedKey(orKey.trim())
     setShowKeyInput(false)
+  }
+
+  function saveGemKey() {
+    localStorage.setItem('gemini_key', gemKey.trim())
+    setSavedGemKey(gemKey.trim())
+    setShowGemInput(false)
   }
 
   const filtered = MODELS.filter(m =>
     !search || m.name.toLowerCase().includes(search.toLowerCase()) || m.id.toLowerCase().includes(search.toLowerCase())
   )
   const anthropicModels = filtered.filter(m => m.provider === 'anthropic')
-  const freeModels = filtered.filter(m => m.tier === 'free')
+  const geminiModels = filtered.filter(m => m.provider === 'gemini')
+  const freeModels = filtered.filter(m => m.provider === 'openrouter' && m.tier === 'free')
   const needsOrKey = selected.provider === 'openrouter' && !savedKey
+  const needsGemKey = selected.provider === 'gemini' && !savedGemKey
 
   const recommendedId = task ? TASK_RECOMMENDED[task] : null
   const isOnRecommended = recommendedId === selectedId
@@ -121,7 +140,9 @@ export default function AIModelSelector({ task }: { task?: Task }) {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-            selected.provider === 'anthropic' ? 'bg-gradient-to-br from-violet-500 to-purple-600' : 'bg-gradient-to-br from-emerald-500 to-teal-600'
+            selected.provider === 'anthropic' ? 'bg-gradient-to-br from-violet-500 to-purple-600'
+              : selected.provider === 'gemini' ? 'bg-gradient-to-br from-blue-500 to-indigo-600'
+              : 'bg-gradient-to-br from-emerald-500 to-teal-600'
           }`}>
             <Sparkles className="w-5 h-5 text-white" />
           </div>
@@ -142,7 +163,7 @@ export default function AIModelSelector({ task }: { task?: Task }) {
             </div>
             <p className="font-semibold text-gray-900 truncate">{selected.name}</p>
             <p className="text-xs text-gray-500 mt-0.5 truncate">
-              {selected.provider === 'anthropic' ? 'Anthropic' : 'OpenRouter'} · {selected.context} · {selected.speed} · {selected.quality}
+              {selected.provider === 'anthropic' ? 'Anthropic' : selected.provider === 'gemini' ? 'Google Gemini' : 'OpenRouter'} · {selected.context} · {selected.speed} · {selected.quality}
             </p>
           </div>
         </div>
@@ -156,6 +177,17 @@ export default function AIModelSelector({ task }: { task?: Task }) {
           ) : (
             <span className="text-xs text-green-700 bg-green-50 px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
               <Check className="w-3 h-3" /> OpenRouter
+            </span>
+          )}
+
+          {!savedGemKey ? (
+            <button onClick={() => setShowGemInput(s => !s)} className="btn-secondary text-xs py-2 px-3 justify-center">
+              <Key className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Gemini</span>
+            </button>
+          ) : (
+            <span className="text-xs text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+              <Check className="w-3 h-3" /> Gemini
             </span>
           )}
 
@@ -226,6 +258,21 @@ export default function AIModelSelector({ task }: { task?: Task }) {
                       ))}
                     </>
                   )}
+                  {geminiModels.length > 0 && (
+                    <>
+                      <div className="px-3 py-2 bg-gray-50 sticky top-0 z-10 flex items-center gap-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Google Gemini · Gratis</p>
+                        <span className="text-[9px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-bold tracking-normal">free key</span>
+                      </div>
+                      {geminiModels.map(m => (
+                        <ModelOption
+                          key={m.id} m={m} selected={m.id === selectedId}
+                          recommended={m.id === recommendedId}
+                          onClick={() => selectModel(m.id)}
+                        />
+                      ))}
+                    </>
+                  )}
                   {freeModels.length > 0 && (
                     <>
                       <div className="px-3 py-2 bg-gray-50 sticky top-0 z-10 flex items-center gap-2">
@@ -258,6 +305,13 @@ export default function AIModelSelector({ task }: { task?: Task }) {
         </div>
       )}
 
+      {needsGemKey && (
+        <div className="mt-3 flex items-start gap-2 text-xs bg-blue-50 border border-blue-200 rounded-lg p-2.5 text-blue-900">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>Modello Gemini selezionato — aggiungi la API key Google (gratis) per usarlo</span>
+        </div>
+      )}
+
       {showKeyInput && (
         <div className="mt-4 pt-4 border-t border-gray-100">
           <label className="label">OpenRouter API Key</label>
@@ -267,6 +321,19 @@ export default function AIModelSelector({ task }: { task?: Task }) {
           </div>
           <p className="text-[10px] text-gray-400 mt-1.5">
             Crea key gratis su <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" className="text-brand-600 hover:underline">openrouter.ai/keys</a>
+          </p>
+        </div>
+      )}
+
+      {showGemInput && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <label className="label">Google Gemini API Key</label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input type="password" value={gemKey} onChange={e => setGemKey(e.target.value)} placeholder="AIza..." className="input flex-1" />
+            <button onClick={saveGemKey} className="btn-primary text-xs justify-center">Salva</button>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1.5">
+            Crea key gratis su <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="text-brand-600 hover:underline">aistudio.google.com/apikey</a>
           </p>
         </div>
       )}

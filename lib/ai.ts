@@ -1,5 +1,7 @@
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
+const GEMINI_DEFAULT_MODEL = 'gemini-2.0-flash'
 
 // Ordine: modelli veloci/affidabili prima. Il 550B (lento su free tier) è escluso
 // dalla cascade per evitare timeout a catena. claude resta solo per Anthropic diretto.
@@ -16,7 +18,7 @@ const FALLBACK_MODELS = [
 const MAX_OPENROUTER_FALLBACKS = 2
 
 type AIAttempt = {
-  provider: 'openrouter' | 'anthropic'
+  provider: 'openrouter' | 'anthropic' | 'gemini'
   model: string
   ok: boolean
   error?: string
@@ -24,6 +26,11 @@ type AIAttempt = {
 
 function isAnthropicModel(model: string) {
   return model.startsWith('claude-')
+}
+
+// Modello Gemini "nativo" (Google AI), distinto da 'google/gemma-*' che è OpenRouter.
+function isGeminiModel(model: string) {
+  return /^gemini[-.]/i.test(model)
 }
 
 function sanitizeAIError(error: unknown) {
@@ -119,25 +126,55 @@ async function tryOpenRouterModel(
   }
 }
 
+async function tryGeminiModel(
+  model: string,
+  systemPrompt: string | undefined,
+  userPrompt: string,
+  key: string,
+  maxTokens: number,
+  attempts: AIAttempt[],
+): Promise<string | null> {
+  try {
+    const res = await callGemini(model, systemPrompt, userPrompt, key, maxTokens)
+    if (!res.trim()) throw new Error('Risposta AI vuota')
+    recordAttempt(attempts, { provider: 'gemini', model, ok: true })
+    return res
+  } catch (e) {
+    recordAttempt(attempts, { provider: 'gemini', model, ok: false, error: sanitizeAIError(e) })
+    return null
+  }
+}
+
 export async function callAI(params: {
   model: string
   systemPrompt?: string
   userPrompt: string
   openrouterKey?: string
+  geminiKey?: string
   maxTokens?: number
   silentFallback?: boolean
 }): Promise<string> {
   const { model, systemPrompt, userPrompt, maxTokens = 4000, silentFallback = true } = params
-  // SICUREZZA: la chiave BYO arriva dal client (localStorage). Accettala solo se
-  // ha il formato OpenRouter atteso, altrimenti ignorala e usa quella server.
+  // SICUREZZA: le chiavi BYO arrivano dal client (localStorage). Accettale solo se
+  // hanno il formato atteso, altrimenti ignorale e usa quelle server.
   const byoKey = (params.openrouterKey || '').trim()
   const validByoKey = /^sk-or-v1-[A-Za-z0-9_-]{20,}$/.test(byoKey) ? byoKey : ''
   const orKey = (validByoKey || process.env.OPENROUTER_API_KEY || '').trim()
   const anthropicKey = (process.env.ANTHROPIC_API_KEY || '').trim()
+  const byoGemini = (params.geminiKey || '').trim()
+  const validGemini = /^[A-Za-z0-9_-]{20,}$/.test(byoGemini) ? byoGemini : ''
+  const geminiKey = (validGemini || process.env.GEMINI_API_KEY || '').trim()
 
   const attempts: AIAttempt[] = []
 
-  const canUseRequestedOnOpenRouter = !isAnthropicModel(model) || model.startsWith('anthropic/')
+  // I modelli Gemini nativi non vanno su OpenRouter; gli Anthropic neppure.
+  const canUseRequestedOnOpenRouter = !isAnthropicModel(model) && !isGeminiModel(model)
+
+  // Try 0: Gemini come provider primario, se l'utente ha scelto un modello Gemini.
+  if (geminiKey && isGeminiModel(model)) {
+    const res = await tryGeminiModel(model, systemPrompt, userPrompt, geminiKey, maxTokens, attempts)
+    if (res) return res
+  }
 
   // Try 1: OpenRouter. Bridge affidabilità: prima ondata veloce sul modello
   // richiesto + fallback; se TUTTO è rate-limited, attende il Retry-After e
@@ -162,9 +199,11 @@ export async function callAI(params: {
       if (res) return res
     }
 
-    // Ondata 2: solo se i fallimenti OpenRouter sono TUTTI rate-limit.
+    // Ondata 2: attende il Retry-After e ritenta SOLO se OpenRouter è l'unica
+    // opzione. Se c'è una key affidabile (Gemini/Anthropic), salta l'attesa e
+    // passa direttamente a quella.
     const orFailures = attempts.filter(a => a.provider === 'openrouter' && !a.ok)
-    if (orModels.length && orFailures.length && orFailures.every(a => isRateLimit(a.error))) {
+    if (!geminiKey && !anthropicKey && orModels.length && orFailures.length && orFailures.every(a => isRateLimit(a.error))) {
       const waitMs = rateLimitWaitMs(orFailures)
       if (waitMs > 0) {
         console.warn('[AI bridge]', `modelli free rate-limited, attendo ${Math.round(waitMs / 1000)}s e ritento`)
@@ -172,6 +211,17 @@ export async function callAI(params: {
         const res = await tryOpenRouterModel(orModels[0], systemPrompt, userPrompt, orKey, maxTokens, attempts)
         if (res) return res
       }
+    }
+  }
+
+  // Try 1.5: Gemini come fallback affidabile (free, no rate-limit aggressivo).
+  // Salta se il modello è già stato tentato sopra (evita ritentativi identici).
+  if (geminiKey && silentFallback) {
+    const triedGemini = new Set(attempts.filter(a => a.provider === 'gemini').map(a => a.model))
+    const fbModel = isGeminiModel(model) ? model : GEMINI_DEFAULT_MODEL
+    if (!triedGemini.has(fbModel)) {
+      const res = await tryGeminiModel(fbModel, systemPrompt, userPrompt, geminiKey, maxTokens, attempts)
+      if (res) return res
     }
   }
 
@@ -266,6 +316,40 @@ async function callAnthropic(
     if (!res.ok) throw new Error(formatHttpError(res.status, await res.text().catch(() => '')))
     const data = await res.json()
     return data.content?.[0]?.text || ''
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function callGemini(
+  model: string,
+  systemPrompt: string | undefined,
+  userPrompt: string,
+  key: string,
+  maxTokens: number,
+  timeout = 45000,
+): Promise<string> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeout)
+
+  const body: Record<string, unknown> = {
+    contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+    generationConfig: { maxOutputTokens: maxTokens },
+  }
+  if (systemPrompt) body.systemInstruction = { parts: [{ text: systemPrompt }] }
+
+  try {
+    // La key va nell'header x-goog-api-key (non in querystring) per non finire nei log.
+    const res = await fetch(`${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      signal: controller.signal,
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(formatHttpError(res.status, await res.text().catch(() => '')))
+    const data = await res.json()
+    const parts = data.candidates?.[0]?.content?.parts
+    return Array.isArray(parts) ? parts.map((p: { text?: string }) => p.text || '').join('') : ''
   } finally {
     clearTimeout(timer)
   }

@@ -36,7 +36,7 @@ Output SOLO JSON valido:
 export async function POST(request: Request) {
   try {
     await requireAuth()
-    const { url, settore, model, openrouter_key } = await request.json()
+    const { url, settore, model, openrouter_key, gemini_key } = await request.json()
     if (!url) {
       return NextResponse.json({ error: 'url richiesto' }, { status: 400 })
     }
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       model: model || 'meta-llama/llama-3.3-70b-instruct:free',
       systemPrompt: `Sei un marketing strategist e growth hacker senior. Analizzi siti e-commerce e produci strategie di acquisizione clienti. Settore: ${settore || 'generalista'}. Rispondi SOLO con JSON valido.`,
       userPrompt,
-      openrouterKey: openrouter_key || undefined,
+      openrouterKey: openrouter_key, geminiKey: gemini_key || undefined,
       maxTokens: 3000,
     })
 
