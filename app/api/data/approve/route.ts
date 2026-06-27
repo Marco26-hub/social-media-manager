@@ -20,8 +20,8 @@ export async function GET(request: Request) {
               c.data_pubblicazione, c.ora_pubblicazione, c.nome_prodotto, c.tema,
               cl.nome as cliente_nome, cl.slug as cliente_slug
        FROM approval_tokens ct
-       JOIN calendario c ON c.id_contenuto = ct.contenuto_id AND c.cliente_id = ct.cliente_id
-       JOIN clienti cl ON cl.id = ct.cliente_id
+       JOIN calendario c ON c.id_contenuto = ct.contenuto_id AND c.cliente_id = ct.cliente_id::uuid
+       JOIN clienti cl ON cl.id = ct.cliente_id::uuid
        WHERE ct.token = $1 AND ct.expires_at > now() AND ct.status = 'pending'`,
       [token],
     )
