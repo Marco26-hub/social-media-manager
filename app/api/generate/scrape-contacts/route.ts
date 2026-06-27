@@ -39,15 +39,20 @@ function extractContactsFromHtml(html: string, baseUrl: string) {
     .replace(/&nbsp;/g, ' ')
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
 
-  // Email — cercate sia nell'HTML raw (mailto:) che nel testo visibile
+  // Decodifica unicode escape (> ecc.) prima di cercare email nell'HTML raw
+  const htmlDecoded = html.replace(/\\u([\dA-Fa-f]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+
   const emailPattern = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g
+  const PLACEHOLDER_EMAILS = new Set(['nome@azienda.com', 'email@example.com', 'user@example.com', 'test@test.com', 'info@example.com', 'example@example.com'])
   const rawEmails = [...new Set([
-    ...(html.match(emailPattern) || []),
+    ...(htmlDecoded.match(emailPattern) || []),
     ...(text.match(emailPattern) || []),
   ])]
     .map(e => e.toLowerCase())
+    .filter(e => /^[a-zA-Z0-9]/.test(e))
     .filter(e => !/\.(png|jpg|jpeg|gif|webp|svg|ico|css|js|woff|ttf)$/i.test(e))
     .filter(e => !e.includes('..') && !e.startsWith('.') && e.includes('.'))
+    .filter(e => !PLACEHOLDER_EMAILS.has(e))
     .slice(0, 20)
 
   // Telefono (Italia + internazionale)
@@ -76,7 +81,7 @@ function extractContactsFromHtml(html: string, baseUrl: string) {
   // Social media
   const socialPatterns: { piattaforma: string; regex: RegExp; urlBuilder: (h: string) => string }[] = [
     { piattaforma: 'instagram', regex: /instagram\.com\/([a-zA-Z0-9._]{1,30})\/?(?=['">\s?#])/g, urlBuilder: h => `https://www.instagram.com/${h}/` },
-    { piattaforma: 'facebook', regex: /facebook\.com\/([a-zA-Z0-9._\-]{1,75})\/?(?=['">\s?#])/g, urlBuilder: h => `https://www.facebook.com/${h}` },
+    { piattaforma: 'facebook', regex: /facebook\.com\/(?!profile\.php)([a-zA-Z0-9._\-]{1,75})\/?(?=['">\s?#])/g, urlBuilder: h => `https://www.facebook.com/${h}` },
     { piattaforma: 'tiktok', regex: /tiktok\.com\/@([a-zA-Z0-9._]{1,30})\/?(?=['">\s?#])/g, urlBuilder: h => `https://www.tiktok.com/@${h}` },
     { piattaforma: 'linkedin', regex: /linkedin\.com\/(?:company|in)\/([a-zA-Z0-9._\-]{1,75})\/?(?=['">\s?#])/g, urlBuilder: h => `https://www.linkedin.com/company/${h}` },
     { piattaforma: 'youtube', regex: /youtube\.com\/(?:channel\/UC|c\/|@)([a-zA-Z0-9._\-]{1,50})\/?(?=['">\s?#])/g, urlBuilder: h => `https://www.youtube.com/@${h}` },
