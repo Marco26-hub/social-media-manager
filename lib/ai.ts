@@ -31,7 +31,30 @@ function sanitizeAIError(error: unknown) {
   return message
     .replace(/Bearer\s+[A-Za-z0-9._-]+/g, 'Bearer [redacted]')
     .replace(/sk-or-v1-[A-Za-z0-9._-]+/g, 'sk-or-v1-[redacted]')
-    .slice(0, 500)
+    // Non esporre identificatori/utente del provider nel messaggio al client.
+    .replace(/"?user_id"?\s*:\s*"[^"]*"/gi, '')
+    .slice(0, 300)
+}
+
+function isRateLimit(message?: string) {
+  return /\b429\b|rate.?limit/i.test(message || '')
+}
+
+// Estrae un motivo BREVE e sicuro da una risposta HTTP del provider, senza
+// riversare il corpo JSON grezzo (che contiene user_id, metadata, ecc.).
+function formatHttpError(status: number, body: string): string {
+  if (status === 429) {
+    const m = body.match(/retry_after_seconds"?\s*:\s*"?(\d+)/i)
+    return m ? `429 rate-limited (retry ${m[1]}s)` : '429 rate-limited'
+  }
+  let reason = ''
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string } | string }
+    reason = typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message || '')
+  } catch {
+    reason = body
+  }
+  return `${status} ${reason}`.trim().slice(0, 160)
 }
 
 function recordAttempt(attempts: AIAttempt[], attempt: AIAttempt) {
@@ -45,13 +68,22 @@ function recordAttempt(attempts: AIAttempt[], attempt: AIAttempt) {
 
 function buildFailureMessage(attempts: AIAttempt[]) {
   if (!attempts.length) {
-    return 'No AI provider configured. Aggiungi OPENROUTER_API_KEY o ANTHROPIC_API_KEY su Render, oppure incolla una OpenRouter API Key nella pagina.'
+    return 'Nessun provider AI configurato. Aggiungi OPENROUTER_API_KEY o ANTHROPIC_API_KEY, oppure incolla una OpenRouter API Key nella pagina.'
+  }
+
+  // Se TUTTI i tentativi falliti sono per rate limit, dai un messaggio chiaro e
+  // azionabile invece di riversare i dump grezzi dei provider.
+  const failed = attempts.filter(a => !a.ok)
+  if (failed.length && failed.every(a => isRateLimit(a.error))) {
+    const retry = failed.map(a => a.error?.match(/retry (\d+)s/)?.[1]).find(Boolean)
+    const wait = retry ? ` Riprova tra ~${retry}s` : ' Riprova tra qualche secondo'
+    return `Modelli AI gratuiti temporaneamente sovraccarichi (rate limit).${wait}, oppure aggiungi una tua API key (OpenRouter/Anthropic) per saltare le code del piano gratuito.`
   }
 
   const summary = attempts
     .map((attempt, index) => `${index + 1}. ${attempt.provider}/${attempt.model}: ${attempt.ok ? 'ok' : attempt.error || 'errore'}`)
     .join(' | ')
-  return `AI generation failed after ${attempts.length} attempt(s): ${summary}`
+  return `Generazione AI fallita dopo ${attempts.length} tentativo/i: ${summary}`
 }
 
 export async function callAI(params: {
@@ -157,7 +189,7 @@ async function callOpenRouter(
       signal: controller.signal,
       body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
     })
-    if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => '')}`)
+    if (!res.ok) throw new Error(formatHttpError(res.status, await res.text().catch(() => '')))
     const data = await res.json()
     return data.choices?.[0]?.message?.content || ''
   } finally {
@@ -193,7 +225,7 @@ async function callAnthropic(
       signal: controller.signal,
       body: JSON.stringify(body),
     })
-    if (!res.ok) throw new Error(`${res.status} ${await res.text().catch(() => '')}`)
+    if (!res.ok) throw new Error(formatHttpError(res.status, await res.text().catch(() => '')))
     const data = await res.json()
     return data.content?.[0]?.text || ''
   } finally {
