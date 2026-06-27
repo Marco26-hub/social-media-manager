@@ -2,9 +2,9 @@
 
 > Documento per AI agent multipli (Claude CLI, Cursor/Cline, Codex). Lavoriamo come un team unificato.
 
-**Data ultimo aggiornamento**: 2026-06-27 (handoff per audit finale Claude Code)
+**Data ultimo aggiornamento**: 2026-06-27 (sessione: bridge AI + multi-provider + security)
 **Progetto**: Social Automation — SaaS social media management per agenzie
-**Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Anthropic/OpenRouter)
+**Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Anthropic/OpenRouter/Gemini/OpenCode)
 **Percorso locale**: `/Users/md/Downloads/social_automation_v2`
 **Repo**: `https://github.com/Marco26-hub/social-media-manager.git`
 
@@ -29,8 +29,29 @@
    ```
 6. **Componenti**: un componente per file. Se un componente diventa >400 righe, spezzare.
 7. **Client vs Server**: pagine dashboard in `app/dashboard/` possono essere `'use client'` se usano stati/hooks. API routes in `app/api/` sono server.
-8. **AI provider**: tutti i generate endpoint accettano `model` e `openrouter_key` dal body. `lib/ai.ts` gestisce fallback automatico OpenRouter → Anthropic.
+8. **AI provider**: tutti i generate endpoint accettano `model`, `openrouter_key`, `gemini_key`, `opencode_key` dal body. `lib/ai.ts` gestisce la cascade multi-provider: Gemini/OpenCode primario (se modello selezionato) → OpenRouter (bridge con retry su Retry-After) → Gemini/OpenCode/Anthropic fallback affidabile. Le key BYO sono validate per formato server-side; supporto anche env `GEMINI_API_KEY`/`OPENCODE_API_KEY`/`ANTHROPIC_API_KEY`/`OPENROUTER_API_KEY`.
 9. **Demo mode**: ogni pagina DEVE funzionare anche senza DB (`isDemo()` → dati finti). Non rompere mai la demo.
+
+---
+
+## 🆕 Sessione 2026-06-27 (Claude Code) — riepilogo
+
+Tutto su `main`, tree pulito, `tsc`+`eslint` verdi.
+
+| Commit | Cosa |
+|--------|------|
+| `e1216f5` | `GenerationProvider` globale + barra progresso persistente (generazione continua cambiando pagina) |
+| `86c33d6` | Migrate tutte le pagine AI al GenerationProvider (piano, social, ads, competitor, seo, brand, onboarding) |
+| `c3cd86b` | **Security**: fail-closed auth/demo in prod, webhook Blotato (no bypass), SSRF media-validate (block IP privati), security headers, rate limit `/api/generate` (20/min) |
+| `3d410dc` | Fix messaggio errore AI su rate-limit, stop leak `user_id` nel dump OpenRouter |
+| `8e5f38f` | Demo walkthrough recorder Playwright (`npm run demo:video`, cursore animato → mp4) |
+| `9856d79` | **Bridge affidabilità OpenRouter free**: su 429 attende il Retry-After (cap 28s) e ritenta — converte i 429 "retry shortly" in successi senza key a pagamento |
+| `a6d893e` | **Google Gemini** provider selezionabile (free) + campo key (`aistudio.google.com/apikey`) |
+| `5fa6a3d` | **OpenCode Zen/Go** provider selezionabile (DeepSeek V4, GLM-5.2, Kimi K2.6…) + campo key, OpenAI-compatible su `opencode.ai/zen/v1` |
+
+**Stato AI provider (deploy live `social-media-manager-zte4.onrender.com`)**: `mode: production`, `openrouter: true` (ma default `:free` → 429), `anthropic: false`, `gemini`/`opencode`: da configurare key. Per generazione reale affidabile: incollare una key Gemini (free) o OpenCode (sk-) nel pannello AI, oppure settare env su Render.
+
+**Pending noti**: zero test automatici; `score-content` (calendario) ha feedback locale ma non è nel GenerationBar globale; `BLOTATO_API_KEY` mancante sul deploy (autopublish off).
 
 ---
 
