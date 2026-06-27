@@ -42,7 +42,7 @@ Output SOLO JSON valido:
 export async function POST(request: Request) {
   try {
     await requireAuth()
-    const { cliente_id, competitor_nome, competitor_sito, competitor_social, model, openrouter_key, gemini_key } = await request.json()
+    const { cliente_id, competitor_nome, competitor_sito, competitor_social, model, openrouter_key, gemini_key, opencode_key } = await request.json()
     if (!cliente_id || !competitor_nome) {
       return NextResponse.json({ error: 'cliente_id e competitor_nome richiesti' }, { status: 400 })
     }
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
       model: model || 'meta-llama/llama-3.3-70b-instruct:free',
       systemPrompt: 'Sei un social media analyst senior. Rispondi SOLO con JSON valido.',
       userPrompt,
-      openrouterKey: openrouter_key, geminiKey: gemini_key,
+      openrouterKey: openrouter_key, geminiKey: gemini_key, opencodeKey: opencode_key,
       maxTokens: 4000,
     })
 

@@ -80,7 +80,7 @@ Output SOLO JSON valido con campi markdown:
 export async function POST(request: Request) {
   try {
     await requireAuth()
-    const { cliente_id, brand, settore, url, target, model, openrouter_key, gemini_key } = await request.json()
+    const { cliente_id, brand, settore, url, target, model, openrouter_key, gemini_key, opencode_key } = await request.json()
     const clientContext = await getClientGenerationContext(cliente_id)
     const brandIdentity = mergeBrandIdentity(clientContext, brand)
 
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
       model: model || 'meta-llama/llama-3.3-70b-instruct:free',
       systemPrompt: 'Sei un legal compliance specialist italiano. Generi documenti legali conformi a GDPR, Cookie Law e normative italiane. Rispondi SOLO con JSON valido. Non dare consulenza legale personalizzata senza revisione.',
       userPrompt,
-      openrouterKey: openrouter_key, geminiKey: gemini_key || undefined,
+      openrouterKey: openrouter_key, geminiKey: gemini_key, opencodeKey: opencode_key || undefined,
       maxTokens: 8000,
     })
 

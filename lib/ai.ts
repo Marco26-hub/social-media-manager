@@ -2,6 +2,10 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 const GEMINI_DEFAULT_MODEL = 'gemini-2.0-flash'
+// OpenCode Zen/Go: gateway OpenAI-compatible (DeepSeek, GLM, Kimi, Qwen...).
+const OPENCODE_API_URL = 'https://opencode.ai/zen/v1/chat/completions'
+const OPENCODE_PREFIX = 'opencode/'
+const OPENCODE_DEFAULT_MODEL = 'deepseek-v4-flash-free'
 
 // Ordine: modelli veloci/affidabili prima. Il 550B (lento su free tier) è escluso
 // dalla cascade per evitare timeout a catena. claude resta solo per Anthropic diretto.
@@ -18,7 +22,7 @@ const FALLBACK_MODELS = [
 const MAX_OPENROUTER_FALLBACKS = 2
 
 type AIAttempt = {
-  provider: 'openrouter' | 'anthropic' | 'gemini'
+  provider: 'openrouter' | 'anthropic' | 'gemini' | 'opencode'
   model: string
   ok: boolean
   error?: string
@@ -33,11 +37,20 @@ function isGeminiModel(model: string) {
   return /^gemini[-.]/i.test(model)
 }
 
+// Modello OpenCode Zen/Go, marcato col prefisso 'opencode/' nella UI.
+function isOpenCodeModel(model: string) {
+  return model.startsWith(OPENCODE_PREFIX)
+}
+function stripOpenCodePrefix(model: string) {
+  return model.startsWith(OPENCODE_PREFIX) ? model.slice(OPENCODE_PREFIX.length) : model
+}
+
 function sanitizeAIError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || 'errore sconosciuto')
   return message
     .replace(/Bearer\s+[A-Za-z0-9._-]+/g, 'Bearer [redacted]')
-    .replace(/sk-or-v1-[A-Za-z0-9._-]+/g, 'sk-or-v1-[redacted]')
+    .replace(/sk-[A-Za-z0-9._-]{10,}/g, 'sk-[redacted]')
+    .replace(/AIza[A-Za-z0-9._-]{10,}/g, 'AIza[redacted]')
     // Non esporre identificatori/utente del provider nel messaggio al client.
     .replace(/"?user_id"?\s*:\s*"[^"]*"/gi, '')
     .slice(0, 300)
@@ -145,12 +158,32 @@ async function tryGeminiModel(
   }
 }
 
+async function tryOpenCodeModel(
+  model: string,
+  systemPrompt: string | undefined,
+  userPrompt: string,
+  key: string,
+  maxTokens: number,
+  attempts: AIAttempt[],
+): Promise<string | null> {
+  try {
+    const res = await callOpenCode(stripOpenCodePrefix(model), systemPrompt, userPrompt, key, maxTokens)
+    if (!res.trim()) throw new Error('Risposta AI vuota')
+    recordAttempt(attempts, { provider: 'opencode', model, ok: true })
+    return res
+  } catch (e) {
+    recordAttempt(attempts, { provider: 'opencode', model, ok: false, error: sanitizeAIError(e) })
+    return null
+  }
+}
+
 export async function callAI(params: {
   model: string
   systemPrompt?: string
   userPrompt: string
   openrouterKey?: string
   geminiKey?: string
+  opencodeKey?: string
   maxTokens?: number
   silentFallback?: boolean
 }): Promise<string> {
@@ -164,15 +197,24 @@ export async function callAI(params: {
   const byoGemini = (params.geminiKey || '').trim()
   const validGemini = /^[A-Za-z0-9_-]{20,}$/.test(byoGemini) ? byoGemini : ''
   const geminiKey = (validGemini || process.env.GEMINI_API_KEY || '').trim()
+  const byoOpencode = (params.opencodeKey || '').trim()
+  const validOpencode = /^sk-[A-Za-z0-9_-]{16,}$/.test(byoOpencode) ? byoOpencode : ''
+  const opencodeKey = (validOpencode || process.env.OPENCODE_API_KEY || '').trim()
 
   const attempts: AIAttempt[] = []
 
-  // I modelli Gemini nativi non vanno su OpenRouter; gli Anthropic neppure.
-  const canUseRequestedOnOpenRouter = !isAnthropicModel(model) && !isGeminiModel(model)
+  // I modelli Gemini/OpenCode/Anthropic non vanno su OpenRouter.
+  const canUseRequestedOnOpenRouter = !isAnthropicModel(model) && !isGeminiModel(model) && !isOpenCodeModel(model)
 
-  // Try 0: Gemini come provider primario, se l'utente ha scelto un modello Gemini.
+  // Try 0a: Gemini come provider primario, se l'utente ha scelto un modello Gemini.
   if (geminiKey && isGeminiModel(model)) {
     const res = await tryGeminiModel(model, systemPrompt, userPrompt, geminiKey, maxTokens, attempts)
+    if (res) return res
+  }
+
+  // Try 0b: OpenCode come provider primario, se l'utente ha scelto un modello opencode/*.
+  if (opencodeKey && isOpenCodeModel(model)) {
+    const res = await tryOpenCodeModel(model, systemPrompt, userPrompt, opencodeKey, maxTokens, attempts)
     if (res) return res
   }
 
@@ -200,10 +242,10 @@ export async function callAI(params: {
     }
 
     // Ondata 2: attende il Retry-After e ritenta SOLO se OpenRouter è l'unica
-    // opzione. Se c'è una key affidabile (Gemini/Anthropic), salta l'attesa e
-    // passa direttamente a quella.
+    // opzione. Se c'è una key affidabile (Gemini/OpenCode/Anthropic), salta
+    // l'attesa e passa direttamente a quella.
     const orFailures = attempts.filter(a => a.provider === 'openrouter' && !a.ok)
-    if (!geminiKey && !anthropicKey && orModels.length && orFailures.length && orFailures.every(a => isRateLimit(a.error))) {
+    if (!geminiKey && !opencodeKey && !anthropicKey && orModels.length && orFailures.length && orFailures.every(a => isRateLimit(a.error))) {
       const waitMs = rateLimitWaitMs(orFailures)
       if (waitMs > 0) {
         console.warn('[AI bridge]', `modelli free rate-limited, attendo ${Math.round(waitMs / 1000)}s e ritento`)
@@ -221,6 +263,16 @@ export async function callAI(params: {
     const fbModel = isGeminiModel(model) ? model : GEMINI_DEFAULT_MODEL
     if (!triedGemini.has(fbModel)) {
       const res = await tryGeminiModel(fbModel, systemPrompt, userPrompt, geminiKey, maxTokens, attempts)
+      if (res) return res
+    }
+  }
+
+  // Try 1.6: OpenCode come fallback affidabile (modello free DeepSeek V4 Flash).
+  if (opencodeKey && silentFallback) {
+    const triedOpencode = new Set(attempts.filter(a => a.provider === 'opencode').map(a => a.model))
+    const fbModel = isOpenCodeModel(model) ? model : OPENCODE_PREFIX + OPENCODE_DEFAULT_MODEL
+    if (!triedOpencode.has(fbModel)) {
+      const res = await tryOpenCodeModel(fbModel, systemPrompt, userPrompt, opencodeKey, maxTokens, attempts)
       if (res) return res
     }
   }
@@ -350,6 +402,37 @@ async function callGemini(
     const data = await res.json()
     const parts = data.candidates?.[0]?.content?.parts
     return Array.isArray(parts) ? parts.map((p: { text?: string }) => p.text || '').join('') : ''
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+// OpenCode Zen/Go è OpenAI-compatible: stesso shape di OpenRouter, base URL diverso.
+async function callOpenCode(
+  model: string,
+  systemPrompt: string | undefined,
+  userPrompt: string,
+  key: string,
+  maxTokens: number,
+  timeout = 45000,
+): Promise<string> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeout)
+
+  const messages: { role: string; content: string }[] = []
+  if (systemPrompt) messages.push({ role: 'system', content: systemPrompt })
+  messages.push({ role: 'user', content: userPrompt })
+
+  try {
+    const res = await fetch(OPENCODE_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      signal: controller.signal,
+      body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
+    })
+    if (!res.ok) throw new Error(formatHttpError(res.status, await res.text().catch(() => '')))
+    const data = await res.json()
+    return data.choices?.[0]?.message?.content || ''
   } finally {
     clearTimeout(timer)
   }

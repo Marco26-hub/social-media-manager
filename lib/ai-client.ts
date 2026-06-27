@@ -8,16 +8,19 @@ export function readAISettings() {
       model: DEFAULT_AI_MODEL,
       openrouter_key: undefined as string | undefined,
       gemini_key: undefined as string | undefined,
+      opencode_key: undefined as string | undefined,
     }
   }
 
   const model = localStorage.getItem('ai_model') || DEFAULT_AI_MODEL
   const openrouterKey = localStorage.getItem('openrouter_key')?.trim()
   const geminiKey = localStorage.getItem('gemini_key')?.trim()
+  const opencodeKey = localStorage.getItem('opencode_key')?.trim()
   return {
     model,
     openrouter_key: openrouterKey || undefined,
     gemini_key: geminiKey || undefined,
+    opencode_key: opencodeKey || undefined,
   }
 }
 

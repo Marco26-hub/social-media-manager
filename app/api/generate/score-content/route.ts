@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       cta,
       visual,
       model,
-      openrouter_key, gemini_key,
+      openrouter_key, gemini_key, opencode_key,
       quality_level,
       audience_segment,
       funnel_stage,
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
       model: model || 'meta-llama/llama-3.3-70b-instruct:free',
       systemPrompt: 'Sei un social media quality auditor. Valuta contenuti in modo oggettivo. Rispondi SOLO con JSON valido.',
       userPrompt,
-      openrouterKey: openrouter_key, geminiKey: gemini_key || undefined,
+      openrouterKey: openrouter_key, geminiKey: gemini_key, opencodeKey: opencode_key || undefined,
       maxTokens: 1000,
     })
 

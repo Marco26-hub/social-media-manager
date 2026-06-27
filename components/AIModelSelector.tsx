@@ -5,7 +5,7 @@ import { Sparkles, Check, ChevronDown, Key, Zap, AlertCircle, Search, ThumbsUp }
 type Model = {
   id: string
   name: string
-  provider: 'anthropic' | 'openrouter' | 'gemini'
+  provider: 'anthropic' | 'openrouter' | 'gemini' | 'opencode'
   tier: 'default' | 'free' | 'paid'
   context: string
   speed: 'fast' | 'medium' | 'slow'
@@ -57,6 +57,13 @@ const MODELS: Model[] = [
   { id: 'gemini-2.0-flash',       name: 'Gemini 2.0 Flash',      provider: 'gemini', tier: 'free', context: '1M',   speed: 'fast',   quality: 'high', badge: 'Google · Free', recommendedFor: ['contenuti-social', 'piano-editoriale', 'seo-audit', 'blog-articolo'] },
   { id: 'gemini-2.0-flash-lite',  name: 'Gemini 2.0 Flash Lite', provider: 'gemini', tier: 'free', context: '1M',   speed: 'fast',   quality: 'medium', badge: 'Google · Veloce' },
   { id: 'gemini-1.5-flash',       name: 'Gemini 1.5 Flash',      provider: 'gemini', tier: 'free', context: '1M',   speed: 'fast',   quality: 'high', badge: 'Google' },
+
+  // OpenCode Zen/Go (gateway, key sk- su opencode.ai/auth). Modelli "-free" gratis.
+  { id: 'opencode/deepseek-v4-flash-free', name: 'DeepSeek V4 Flash',  provider: 'opencode', tier: 'free', context: '1M',   speed: 'fast',   quality: 'high', badge: 'OpenCode · Free', recommendedFor: ['contenuti-social', 'piano-editoriale', 'seo-audit', 'blog-articolo'] },
+  { id: 'opencode/nemotron-3-ultra-free',  name: 'Nemotron 3 Ultra',   provider: 'opencode', tier: 'free', context: '1M',   speed: 'medium', quality: 'top',  badge: 'OpenCode · Free' },
+  { id: 'opencode/deepseek-v4-pro',        name: 'DeepSeek V4 Pro',    provider: 'opencode', tier: 'paid', context: '1M',   speed: 'medium', quality: 'top',  badge: 'OpenCode' },
+  { id: 'opencode/glm-5.2',                name: 'GLM-5.2',            provider: 'opencode', tier: 'paid', context: '1M',   speed: 'fast',   quality: 'top',  badge: 'OpenCode' },
+  { id: 'opencode/kimi-k2.6',              name: 'Kimi K2.6',          provider: 'opencode', tier: 'paid', context: '256K', speed: 'fast',   quality: 'top',  badge: 'OpenCode' },
 ]
 
 const QUALITY_DOT: Record<string, string> = {
@@ -74,6 +81,9 @@ export default function AIModelSelector({ task }: { task?: Task }) {
   const [showGemInput, setShowGemInput] = useState(false)
   const [gemKey, setGemKey] = useState('')
   const [savedGemKey, setSavedGemKey] = useState('')
+  const [showOpcInput, setShowOpcInput] = useState(false)
+  const [opcKey, setOpcKey] = useState('')
+  const [savedOpcKey, setSavedOpcKey] = useState('')
   const [search, setSearch] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -86,6 +96,9 @@ export default function AIModelSelector({ task }: { task?: Task }) {
     const gk = localStorage.getItem('gemini_key') || ''
     setSavedGemKey(gk)
     setGemKey(gk)
+    const ok = localStorage.getItem('opencode_key') || ''
+    setSavedOpcKey(ok)
+    setOpcKey(ok)
   }, [task])
 
   useEffect(() => {
@@ -119,14 +132,22 @@ export default function AIModelSelector({ task }: { task?: Task }) {
     setShowGemInput(false)
   }
 
+  function saveOpcKey() {
+    localStorage.setItem('opencode_key', opcKey.trim())
+    setSavedOpcKey(opcKey.trim())
+    setShowOpcInput(false)
+  }
+
   const filtered = MODELS.filter(m =>
     !search || m.name.toLowerCase().includes(search.toLowerCase()) || m.id.toLowerCase().includes(search.toLowerCase())
   )
   const anthropicModels = filtered.filter(m => m.provider === 'anthropic')
   const geminiModels = filtered.filter(m => m.provider === 'gemini')
+  const opencodeModels = filtered.filter(m => m.provider === 'opencode')
   const freeModels = filtered.filter(m => m.provider === 'openrouter' && m.tier === 'free')
   const needsOrKey = selected.provider === 'openrouter' && !savedKey
   const needsGemKey = selected.provider === 'gemini' && !savedGemKey
+  const needsOpcKey = selected.provider === 'opencode' && !savedOpcKey
 
   const recommendedId = task ? TASK_RECOMMENDED[task] : null
   const isOnRecommended = recommendedId === selectedId
@@ -142,6 +163,7 @@ export default function AIModelSelector({ task }: { task?: Task }) {
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
             selected.provider === 'anthropic' ? 'bg-gradient-to-br from-violet-500 to-purple-600'
               : selected.provider === 'gemini' ? 'bg-gradient-to-br from-blue-500 to-indigo-600'
+              : selected.provider === 'opencode' ? 'bg-gradient-to-br from-orange-500 to-amber-600'
               : 'bg-gradient-to-br from-emerald-500 to-teal-600'
           }`}>
             <Sparkles className="w-5 h-5 text-white" />
@@ -163,7 +185,7 @@ export default function AIModelSelector({ task }: { task?: Task }) {
             </div>
             <p className="font-semibold text-gray-900 truncate">{selected.name}</p>
             <p className="text-xs text-gray-500 mt-0.5 truncate">
-              {selected.provider === 'anthropic' ? 'Anthropic' : selected.provider === 'gemini' ? 'Google Gemini' : 'OpenRouter'} · {selected.context} · {selected.speed} · {selected.quality}
+              {selected.provider === 'anthropic' ? 'Anthropic' : selected.provider === 'gemini' ? 'Google Gemini' : selected.provider === 'opencode' ? 'OpenCode' : 'OpenRouter'} · {selected.context} · {selected.speed} · {selected.quality}
             </p>
           </div>
         </div>
@@ -188,6 +210,17 @@ export default function AIModelSelector({ task }: { task?: Task }) {
           ) : (
             <span className="text-xs text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
               <Check className="w-3 h-3" /> Gemini
+            </span>
+          )}
+
+          {!savedOpcKey ? (
+            <button onClick={() => setShowOpcInput(s => !s)} className="btn-secondary text-xs py-2 px-3 justify-center">
+              <Key className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">OpenCode</span>
+            </button>
+          ) : (
+            <span className="text-xs text-orange-700 bg-orange-50 px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+              <Check className="w-3 h-3" /> OpenCode
             </span>
           )}
 
@@ -273,6 +306,21 @@ export default function AIModelSelector({ task }: { task?: Task }) {
                       ))}
                     </>
                   )}
+                  {opencodeModels.length > 0 && (
+                    <>
+                      <div className="px-3 py-2 bg-gray-50 sticky top-0 z-10 flex items-center gap-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-orange-700">OpenCode Zen/Go</p>
+                        <span className="text-[9px] px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full font-bold tracking-normal">DeepSeek · GLM · Kimi</span>
+                      </div>
+                      {opencodeModels.map(m => (
+                        <ModelOption
+                          key={m.id} m={m} selected={m.id === selectedId}
+                          recommended={m.id === recommendedId}
+                          onClick={() => selectModel(m.id)}
+                        />
+                      ))}
+                    </>
+                  )}
                   {freeModels.length > 0 && (
                     <>
                       <div className="px-3 py-2 bg-gray-50 sticky top-0 z-10 flex items-center gap-2">
@@ -312,6 +360,13 @@ export default function AIModelSelector({ task }: { task?: Task }) {
         </div>
       )}
 
+      {needsOpcKey && (
+        <div className="mt-3 flex items-start gap-2 text-xs bg-orange-50 border border-orange-200 rounded-lg p-2.5 text-orange-900">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>Modello OpenCode selezionato — aggiungi la API key OpenCode (sk-...) per usarlo</span>
+        </div>
+      )}
+
       {showKeyInput && (
         <div className="mt-4 pt-4 border-t border-gray-100">
           <label className="label">OpenRouter API Key</label>
@@ -334,6 +389,19 @@ export default function AIModelSelector({ task }: { task?: Task }) {
           </div>
           <p className="text-[10px] text-gray-400 mt-1.5">
             Crea key gratis su <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="text-brand-600 hover:underline">aistudio.google.com/apikey</a>
+          </p>
+        </div>
+      )}
+
+      {showOpcInput && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <label className="label">OpenCode API Key</label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input type="password" value={opcKey} onChange={e => setOpcKey(e.target.value)} placeholder="sk-..." className="input flex-1" />
+            <button onClick={saveOpcKey} className="btn-primary text-xs justify-center">Salva</button>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1.5">
+            Crea key su <a href="https://opencode.ai/auth" target="_blank" rel="noopener" className="text-brand-600 hover:underline">opencode.ai/auth</a> (Zen/Go). Modelli &ldquo;Free&rdquo; gratis.
           </p>
         </div>
       )}

@@ -104,7 +104,7 @@ Output SOLO JSON valido:
 export async function POST(request: Request) {
   try {
     await requireAuth()
-    const { cliente_id, platform, brand, product, obiettivo, budget, model, openrouter_key, gemini_key, quality, quality_level, post_quality, qualita } = await request.json()
+    const { cliente_id, platform, brand, product, obiettivo, budget, model, openrouter_key, gemini_key, opencode_key, quality, quality_level, post_quality, qualita } = await request.json()
     if (!platform) {
       return NextResponse.json({ error: 'platform richiesto' }, { status: 400 })
     }
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
       model: model || 'meta-llama/llama-3.3-70b-instruct:free',
       systemPrompt: `${systemPrompts[platform] || 'Sei un ads specialist. Rispondi SOLO con JSON valido.'} Livello qualità: ${contentQuality}. Non inventare dati non forniti; formula ipotesi misurabili.`,
       userPrompt,
-      openrouterKey: openrouter_key, geminiKey: gemini_key || undefined,
+      openrouterKey: openrouter_key, geminiKey: gemini_key, opencodeKey: opencode_key || undefined,
       maxTokens: contentQuality === 'high' ? 5200 : contentQuality === 'medium' ? 4200 : 3000,
     })
 
