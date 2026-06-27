@@ -7,7 +7,8 @@ import { Target, Calendar, CalendarRange, Sparkles, Loader2, Check, X, Info } fr
 import ConfirmModal from '@/components/ConfirmModal'
 import AIModelSelector from '@/components/AIModelSelector'
 import { useActiveClienteId } from '@/lib/tenant/client'
-import { readAISettings, readApiError } from '@/lib/ai-client'
+import { readAISettings } from '@/lib/ai-client'
+import { useGeneration } from '@/components/GenerationProvider'
 import { useRuntimeDemo } from '@/lib/demo-client'
 import { CONTENT_QUALITY_OPTIONS, type ContentQuality } from '@/lib/content-quality'
 
@@ -17,13 +18,14 @@ export default function PianoPage() {
   const [periodo, setPeriodo] = useState<'settimanale' | 'mensile'>('settimanale')
   const [piattaforme, setPiattaforme] = useState<PlatformKey[]>(['instagram','facebook','tiktok','pinterest'])
   const [obiettivo, setObiettivo] = useState('mix')
-  const [running, setRunning] = useState(false)
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [aiModel, setAiModel] = useState('meta-llama/llama-3.3-70b-instruct:free')
   const [quality, setQuality] = useState<QualitySelection>('auto')
   const { clienteId } = useActiveClienteId()
   const demo = useRuntimeDemo()
+  const gen = useGeneration()
+  const running = gen.isRunning('piano')
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -46,38 +48,29 @@ export default function PianoPage() {
 
   async function genera() {
     setConfirmOpen(false)
-    setRunning(true)
     setMsg(null)
 
-    if (demo) {
-      await new Promise(r => setTimeout(r, 1800))
-      const count = periodo === 'mensile' ? 30 : 7
-      setMsg({ type: 'ok', text: `${count} contenuti generati per ${piattaforme.length} piattaforme. Vai al calendario per approvare.` })
-      setRunning(false)
+    if (!demo && !clienteId) {
+      setMsg({ type: 'err', text: 'Cliente non selezionato' })
       return
     }
 
-    try {
-      if (!clienteId) throw new Error('Cliente non selezionato')
-      const aiSettings = readAISettings()
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 90000)
-      const res = await fetch('/api/generate/plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({ cliente_id: clienteId, piattaforme, obiettivo, periodo, quality, ...aiSettings }),
-      })
-      clearTimeout(timeout)
-      if (!res.ok) throw new Error(await readApiError(res, 'Generazione piano fallita'))
+    const aiSettings = readAISettings()
+    // La generazione gira nel provider globale: continua anche se cambi pagina.
+    const result = await gen.run<{ count?: number }>({
+      key: 'piano',
+      label: `Piano editoriale ${periodo}`,
+      url: '/api/generate/plan',
+      body: { cliente_id: clienteId, piattaforme, obiettivo, periodo, quality, ...aiSettings },
+      href: '/dashboard/calendario',
+      estMs: periodo === 'mensile' ? 50000 : 25000,
+    })
+
+    if (result.ok) {
       setMsg({ type: 'ok', text: 'Piano generato. I contenuti sono nel calendario.' })
-    } catch (e) {
-      const msg = (e as Error).name === 'AbortError'
-        ? 'Richiesta troppo lunga (90s). Il modello AI potrebbe essere sovraccarico. Riprova con un modello diverso.'
-        : (e as Error).message
-      setMsg({ type: 'err', text: msg })
+    } else {
+      setMsg({ type: 'err', text: result.error || 'Generazione piano fallita' })
     }
-    setRunning(false)
   }
 
   const numContenuti = periodo === 'mensile' ? '25-35' : '7-10'

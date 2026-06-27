@@ -13,6 +13,7 @@ import AIModelSelector from '@/components/AIModelSelector'
 import type { Contenuto } from '@/lib/types'
 import { useActiveClienteId } from '@/lib/tenant/client'
 import { readAISettings, readApiError } from '@/lib/ai-client'
+import { useGeneration } from '@/components/GenerationProvider'
 import { useRuntimeDemo } from '@/lib/demo-client'
 import { CONTENT_QUALITY_OPTIONS, type ContentQuality } from '@/lib/content-quality'
 import { GENERATION_OPTIMIZATION_CYCLE } from '@/lib/production-cycle'
@@ -48,6 +49,7 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
   const [uploading, setUploading] = useState(false)
   const demo = useRuntimeDemo()
   const { clienteId, loading: loadingCliente } = useActiveClienteId()
+  const gen = useGeneration()
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -121,38 +123,42 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
 
   async function genera(f: FormatoConfig) {
     setPending(null)
-    setStates(s => ({ ...s, [f.id]: 'loading' }))
     setErrors(prev => {
       const next = { ...prev }
       delete next[f.id]
       return next
     })
-    if (demo) {
-      await new Promise(r => setTimeout(r, 1200))
-      setStates(s => ({ ...s, [f.id]: 'success' }))
-      setTimeout(() => setStates(s => ({ ...s, [f.id]: 'idle' })), 3000)
+    if (!demo && !clienteId) {
+      setErrors(prev => ({ ...prev, [f.id]: 'Cliente non selezionato' }))
+      setStates(s => ({ ...s, [f.id]: 'error' }))
       return
     }
-    try {
-      if (!clienteId) throw new Error('Cliente non selezionato')
-      const aiSettings = readAISettings()
-      const isBlog = f.formato === 'articolo'
-      const endpoint = isBlog ? '/api/generate/blog' : '/api/generate/content'
-      const body = isBlog
-        ? { cliente_id: clienteId, tema: config.nome + ' - ' + f.nome, quality, uploaded_assets: assets, media_urls: assets.map(asset => asset.url), ...aiSettings }
-        : { cliente_id: clienteId, canale: config.canaleDb, formato: f.formato, quality, uploaded_assets: assets, media_urls: assets.map(asset => asset.url), ...aiSettings }
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) throw new Error(await readApiError(res, `Generazione ${f.nome} fallita`))
+    setStates(s => ({ ...s, [f.id]: 'loading' }))
+
+    const aiSettings = readAISettings()
+    const isBlog = f.formato === 'articolo'
+    const endpoint = isBlog ? '/api/generate/blog' : '/api/generate/content'
+    const body = isBlog
+      ? { cliente_id: clienteId, tema: config.nome + ' - ' + f.nome, quality, uploaded_assets: assets, media_urls: assets.map(asset => asset.url), ...aiSettings }
+      : { cliente_id: clienteId, canale: config.canaleDb, formato: f.formato, quality, uploaded_assets: assets, media_urls: assets.map(asset => asset.url), ...aiSettings }
+
+    // Generazione nel provider globale: continua anche se cambi pagina, con barra di progresso.
+    const result = await gen.run({
+      key: `content:${f.id}`,
+      label: `${config.nome} · ${f.nome}`,
+      url: endpoint,
+      body,
+      href: '/dashboard/calendario',
+      estMs: isBlog ? 35000 : 22000,
+    })
+
+    if (result.ok) {
       setStates(s => ({ ...s, [f.id]: 'success' }))
-    } catch (e) {
-      setErrors(prev => ({ ...prev, [f.id]: (e as Error).message }))
+    } else {
+      setErrors(prev => ({ ...prev, [f.id]: result.error || `Generazione ${f.nome} fallita` }))
       setStates(s => ({ ...s, [f.id]: 'error' }))
     }
-    setTimeout(() => setStates(s => ({ ...s, [f.id]: 'idle' })), 3500)
+    setTimeout(() => setStates(s => ({ ...s, [f.id]: 'idle' })), 4000)
   }
 
   return (
