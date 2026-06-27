@@ -216,7 +216,7 @@ Fase completata il 26/06/2026:
 - Validazioni locali: `npm run build` ✅, `npm run lint` ✅ senza warning, `npm run migrate:dry` ✅, `npm audit --audit-level=moderate` ✅, smoke production locale `30 PASS / 0 FAIL`.
 
 Nota operativa:
-- Per produzione Neon/Render eseguire `npm run migrate` dopo il deploy per applicare anche `013_content_quality_ops.sql`.
+- Per produzione Neon/Render eseguire `npm run migrate` dopo il deploy quando `/api/system/health` segnala `latestMigrationApplied=false`.
 - `quality=auto` è consigliato: decide dal pacchetto cliente; usare `quality=high` per servizi premium/elite.
 - Dal 26/06/2026 il server limita la qualità richiesta al piano cliente: un piano `starter/free` non può generare `high` anche se il client prova a inviarlo dal browser.
 - Nuova migrazione `db/migrations/014_visual_templates.sql`: salva `template_id`, `template_style`, `layout_spec_json`, `asset_requirements_json` per rendere producibili post/reel/story/carousel.
@@ -305,7 +305,7 @@ Audit/fix P0 completato il 26/06/2026:
 - [x] **extractJSON/extractJSONArray**: SyntaxError catturata, messaggio leggibile invece di 500 generico.
 - [x] **insertCalendario fallback osservabile**: ritorna bool, logga colonna mancante, aggiunge `schema_fallback`+`warning` nella risposta API quando migration mancante.
 - [x] **Smoke test robusto**: accetta 307 (Next.js auth redirect) e 401 (auth required) come risposte valide in produzione — ora 30/30 su Render live.
-- [ ] **⚠️ BLOCCANTE — Migration 015 su Neon live**: `migrationCount=14` su Render. Eseguire in Render Shell: `npm run migrate`. Applica `015_generation_optimization_cycle.sql` (campi ottimizzazione ciclo). Il fallback insert è attivo nel frattempo.
+- [x] **Health migration senza falso allarme**: `/api/system/health` verifica `latestRequiredMigration=015_generation_optimization_cycle.sql` e `latestMigrationApplied=true`; `migrationCount=14` è normale perché non esiste una migration `003`.
 - [ ] **API key Blotato**: per abilitare pubblicazione automatica (`blotatoApiKey=false` su Render).
 - [ ] **Multi-lingua**: generazione contenuti in altre lingue
 - [ ] **White-label**: logo agenzia custom
@@ -318,10 +318,10 @@ Audit/fix P0 completato il 26/06/2026:
 
 - Repo remoto `origin/main` su commit `7b7672d` (fix: stabilizza generazione asset seo e deploy readiness).
 - Working tree pulito, nessuna modifica locale pendente.
-- Validazioni: `npm run lint` ✅, `npm run build` ✅ (48 route), `npm run migrate:dry` ✅ (15 migration), `npm audit --audit-level=moderate` ✅ 0 vuln.
+- Validazioni: `npm run lint` ✅, `npm run build` ✅ (45 route), `npm run migrate:dry` ✅ (14 file migration, latest `015_generation_optimization_cycle.sql`), `npm audit --audit-level=moderate` ✅ 0 vuln.
 - Smoke test live Render: **30 PASS / 0 FAIL** su `https://social-media-manager-zte4.onrender.com`.
-- Health live: `status=ready`, `mode=production`, `migrationCount=14` (manca 015), `openrouter=true`, `anthropic=false`, `blotatoApiKey=false`.
-- **Azione obbligatoria**: eseguire `npm run migrate` in Render Shell per portare `migrationCount` a 15.
+- Health live: `status=ready`, `mode=production`, `latestMigrationApplied=true`, `openrouter=true`, `anthropic=false`, `blotatoApiKey=false`.
+- **Azione obbligatoria rimasta**: configurare `BLOTATO_API_KEY` prima di vendere pubblicazione automatica end-to-end.
 - Render MCP non disponibile (`RENDER_API_KEY` assente): usare dashboard Render o Render CLI per storico deploy.
 
 Fix applicati in `7b7672d` (già su origin):
@@ -371,7 +371,7 @@ npm run build
 - Guida operativa: `RENDER_PRODUCTION.md`.
 - CI GitHub Actions: `.github/workflows/ci.yml` esegue install, lint, build, audit, migration dry-run e smoke test demo runtime.
 - Setup live in app: `/dashboard/setup` legge `/api/system/health` e mostra checklist produzione, credenziali admin, comandi Render Shell e readiness vendita.
-- **⚠️ Dopo ogni deploy**, eseguire `npm run migrate` sul Neon DB — il comando postDeploy di render.yaml documenta ma non esegue automaticamente il migrate via dashboard Render.
+- **⚠️ Dopo ogni deploy**, controllare `/api/system/health`: se `latestMigrationApplied=false`, eseguire `npm run migrate` sul Neon DB.
 - Upload asset contenuti: `/dashboard/social/[platform]` permette upload immagini o URL pubblici; content/blog usano gli asset nei prompt e salvano media/cover.
 - Nota storage: `public/uploads` su Render è filesystem runtime, utile per servizio gestito; per SaaS self-service serve storage persistente S3/R2/Cloudinary.
 
@@ -381,7 +381,7 @@ npm run build
 - Per storico deploy riusciti/falliti serve Render Dashboard, Render CLI o MCP con `RENDER_API_KEY`.
 - Comandi Render MCP consigliati se configurato: `list_services`, `list_deploys(serviceId, limit: 10)`, `list_logs(resource:[serviceId], type:["build"], limit:200)`, `list_logs(resource:[serviceId], level:["error"], limit:100)`.
 - Pattern già visti e risolti: build fail per `tailwindcss`/PostCSS/devDeps mancanti, CI fail su lint, default model OpenRouter non valido.
-- Stato attuale live: app ready ma DB live non ha ancora migration `015`; prima di vendere pubblicazione automatica serve `BLOTATO_API_KEY`.
+- Stato attuale live: app ready, latest migration applicata; prima di vendere pubblicazione automatica serve `BLOTATO_API_KEY`.
 
 ### Deploy fixes applicati
 - `next.config.ts` → `next.config.mjs` (non richiede TypeScript runtime)
@@ -440,7 +440,7 @@ Obiettivo: fare controllo finale severo prima di commit/push/deploy. Non fidarsi
 2. Verificare che non ci siano segreti hardcoded: cercare `sk-`, `sk-or-`, password reali, token Render/Neon/Blotato.
 3. Eseguire in locale: `npm run lint`, `npm run build`, `npm run migrate:dry`, `npm audit --audit-level=moderate`.
 4. Se possibile avviare locale con env sicure e fare smoke: `bash scripts/smoke-test.sh http://localhost:3000`.
-5. Controllare live health: `/api/system/health`; dopo deploy+migrate deve mostrare `migrationCount >= 15`.
+5. Controllare live health: `/api/system/health`; dopo deploy/migrate deve mostrare `latestMigrationApplied=true`.
 6. Se Render MCP è configurato: controllare ultimi 10 deploy, build logs e runtime error logs.
 
 ### Flussi da testare manualmente
@@ -463,7 +463,7 @@ Obiettivo: fare controllo finale severo prima di commit/push/deploy. Non fidarsi
 
 ### Criterio per chiudere
 - Se tutto è verde: preparare commit atomico, messaggio consigliato `fix: stabilizza generazione asset seo e deploy readiness`.
-- Dopo push: verificare GitHub Actions, Render deploy, poi eseguire `npm run migrate` su Render Shell/DB live.
-- Solo dopo health `ready` con `migrationCount >= 15` considerare chiuso il controllo tecnico.
+- Dopo push: verificare GitHub Actions, Render deploy e `/api/system/health`; migrare solo se `latestMigrationApplied=false`.
+- Solo dopo health `ready` con `latestMigrationApplied=true` considerare chiuso il controllo tecnico.
 
 *Fine handoff. Non reintrodurre Supabase o n8n. Mantieni la demo mode funzionante.*
