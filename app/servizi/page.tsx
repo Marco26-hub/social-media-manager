@@ -21,9 +21,18 @@ import {
 } from 'lucide-react'
 import styles from './servizi.module.css'
 
+// ⚙️ CONFIG CONTATTI — cambia questi 3 valori col tuo numero/email/demo reali
+const WHATSAPP_NUMERO = '39XXXXXXXXXX' // es. 393331234567 (prefisso 39, no +, no spazi)
+const EMAIL_CONTATTO = 'softipost@gmail.com'
+const DEMO_URL = 'https://social-media-manager-zte4.onrender.com/login'
+
+function waLink(messaggio: string) {
+  return `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(messaggio)}`
+}
+
 export const metadata: Metadata = {
-  title: 'Social Automation | Servizi digitali gestiti',
-  description: 'Landing premium per sito, e-commerce e gestione social automatizzata. Servizio gestito Social Automation.',
+  title: 'Social Automation | Gestione social con AI per la tua attività',
+  description: 'Sito, e-commerce e social gestiti con AI. Piano editoriale, contenuti, pubblicazione e report. Scrivici su WhatsApp e parti questa settimana.',
 }
 
 const packages = [
@@ -127,8 +136,8 @@ export default function ServiziPage() {
         <a href="#contatto" className={styles.navCta}>Richiedi consulenza</a>
       </header>
 
-      <a href="#contatto" className={styles.mobileStickyCta}>
-        Richiedi consulenza
+      <a href={waLink('Ciao! Vorrei informazioni sui pacchetti Social Automation.')} target="_blank" rel="noopener" className={styles.mobileStickyCta}>
+        Scrivici su WhatsApp
         <ArrowRight size={17} />
       </a>
 
@@ -144,14 +153,17 @@ export default function ServiziPage() {
             Social Automation crea e gestisce il tuo ecosistema digitale: sito, e-commerce, piano editoriale, contenuti social, pubblicazione controllata e report. Tu guidi l’azienda, noi teniamo acceso il motore digitale.
           </p>
           <div className={styles.heroActions}>
-            <a href="#pacchetti" className={styles.primaryButton}>
-              Vedi pacchetti
+            <a href={waLink('Ciao! Ho visto Social Automation e vorrei capire quale pacchetto fa per la mia attività.')} target="_blank" rel="noopener" className={styles.primaryButton}>
+              Scrivici su WhatsApp
               <ArrowRight size={18} />
             </a>
-            <a href="#metodo" className={styles.secondaryButton}>
-              Scopri il metodo
+            <a href={DEMO_URL} target="_blank" rel="noopener" className={styles.secondaryButton}>
+              Vedi la demo live
             </a>
           </div>
+          <p className={styles.heroReassure}>
+            <ShieldCheck size={15} /> Primo contenuto di prova gratuito · Nessun vincolo · Stop quando vuoi
+          </p>
           <div className={styles.heroStats}>
             <div><strong>5</strong><span>pacchetti scalabili</span></div>
             <div><strong>3-4</strong><span>canali gestibili</span></div>
@@ -244,7 +256,7 @@ export default function ServiziPage() {
                   <li key={feature}><CheckCircle2 size={16} /> {feature}</li>
                 ))}
               </ul>
-              <a href="#contatto" className={pack.featured ? styles.packageCtaFeatured : styles.packageCta}>
+              <a href={waLink(`Ciao! Sono interessato al pacchetto "${pack.name}" (${pack.monthly}). Possiamo parlarne?`)} target="_blank" rel="noopener" className={pack.featured ? styles.packageCtaFeatured : styles.packageCta}>
                 Voglio questo
                 <ChevronRight size={16} />
               </a>
@@ -316,13 +328,13 @@ export default function ServiziPage() {
             <p>Analizziamo presenza attuale, obiettivi, canali e possibilita operative. Poi proponiamo una strada semplice, sostenibile e misurabile.</p>
           </div>
           <div className={styles.ctaActions}>
-            <a href="mailto:info@socialautomation.it?subject=Consulenza%20Social%20Automation" className={styles.primaryButton}>
-              Richiedi consulenza
-              <ArrowRight size={18} />
+            <a href={waLink('Ciao! Vorrei una consulenza gratuita per la mia presenza social.')} target="_blank" rel="noopener" className={styles.primaryButton}>
+              <MessageCircle size={18} />
+              Consulenza gratuita su WhatsApp
             </a>
-            <Link href="/login" className={styles.secondaryButtonDark}>
-              Accesso admin
-            </Link>
+            <a href={`mailto:${EMAIL_CONTATTO}?subject=Consulenza%20Social%20Automation`} className={styles.secondaryButtonDark}>
+              Scrivici via email
+            </a>
           </div>
         </div>
       </section>

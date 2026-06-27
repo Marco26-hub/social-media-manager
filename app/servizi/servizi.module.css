@@ -204,6 +204,19 @@
   border: 1px solid rgba(255, 250, 240, 0.22);
 }
 
+.heroReassure {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(56, 142, 60, 0.1);
+  color: #2e7d32;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .heroStats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
