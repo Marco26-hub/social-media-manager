@@ -4,6 +4,8 @@ import { dbReady, q } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+const LATEST_REQUIRED_MIGRATION = '015_generation_optimization_cycle.sql'
+
 function hasEnv(name: string) {
   return Boolean(process.env[name]?.trim())
 }
@@ -16,6 +18,7 @@ async function getDatabaseChecks(enabled: boolean) {
       adminUser: false,
       migrationsTable: false,
       migrationCount: 0,
+      latestMigrationApplied: false,
       error: null,
     }
   }
@@ -35,7 +38,13 @@ async function getDatabaseChecks(enabled: boolean) {
       ? await q(`SELECT EXISTS(SELECT 1 FROM profiles WHERE email = 'admin') AS admin_user`)
       : []
     const migrationRows = migrationsTable
-      ? await q(`SELECT count(*)::int AS migration_count FROM schema_migrations`)
+      ? await q(
+          `SELECT
+            count(*)::int AS migration_count,
+            EXISTS(SELECT 1 FROM schema_migrations WHERE filename = $1) AS latest_migration_applied
+          FROM schema_migrations`,
+          [LATEST_REQUIRED_MIGRATION]
+        )
       : []
     const admin = adminRows[0] as Record<string, unknown> | undefined
     const migrations = migrationRows[0] as Record<string, unknown> | undefined
@@ -46,6 +55,7 @@ async function getDatabaseChecks(enabled: boolean) {
       adminUser: Boolean(admin?.admin_user),
       migrationsTable,
       migrationCount: Number(migrations?.migration_count || 0),
+      latestMigrationApplied: Boolean(migrations?.latest_migration_applied),
       error: null,
     }
   } catch (error) {
@@ -57,6 +67,7 @@ async function getDatabaseChecks(enabled: boolean) {
       adminUser: false,
       migrationsTable: false,
       migrationCount: 0,
+      latestMigrationApplied: false,
       error: message.slice(0, 240),
     }
   }
@@ -93,6 +104,8 @@ export async function GET() {
     checks,
     database_details: {
       migrationCount: databaseChecks.migrationCount,
+      latestRequiredMigration: LATEST_REQUIRED_MIGRATION,
+      latestMigrationApplied: databaseChecks.latestMigrationApplied,
       error: databaseChecks.error,
     },
     next_actions: [
@@ -104,10 +117,10 @@ export async function GET() {
       ...(!checks.nextauthUrl ? ['Configura NEXTAUTH_URL con URL Render o dominio custom'] : []),
       ...(!checks.siteUrl ? ['Configura NEXT_PUBLIC_SITE_URL per link e referrer OpenRouter'] : []),
       ...(!hasAi ? ['Aggiungi ANTHROPIC_API_KEY o OPENROUTER_API_KEY'] : []),
+      ...(!databaseChecks.latestMigrationApplied ? [`Esegui npm run migrate: manca ${LATEST_REQUIRED_MIGRATION}`] : []),
       ...(!checks.blotatoApiKey ? ['Configura BLOTATO_API_KEY prima di vendere pubblicazione automatica'] : []),
       ...(!checks.blotatoWebhookSecret ? ['Configura BLOTATO_WEBHOOK_SECRET per firmare i callback Blotato'] : []),
-      'Esegui npm run migrate con DATABASE_URL Neon',
-      'Collega pubblicazione APPROVATO → Blotato/webhook',
+      ...(checks.blotatoApiKey ? ['Verifica pubblicazione APPROVATO → Blotato/webhook'] : []),
     ],
   })
 }
