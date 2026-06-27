@@ -194,11 +194,19 @@ async function callAnthropic(
 export function extractJSON(text: string): unknown {
   const m = text.match(/\{[\s\S]*\}/)
   if (!m) throw new Error('No JSON object found in AI response')
-  return JSON.parse(m[0])
+  try {
+    return JSON.parse(m[0])
+  } catch {
+    throw new Error(`Malformed JSON in AI response: ${m[0].slice(0, 300)}`)
+  }
 }
 
 export function extractJSONArray(text: string): unknown[] {
   const m = text.match(/\[[\s\S]*\]/)
   if (!m) throw new Error('No JSON array found in AI response')
-  return JSON.parse(m[0])
+  try {
+    return JSON.parse(m[0])
+  } catch {
+    throw new Error(`Malformed JSON array in AI response: ${m[0].slice(0, 300)}`)
+  }
 }

@@ -82,19 +82,23 @@ function isMissingDbColumn(error: unknown) {
   return /column .* does not exist|42703/i.test(message)
 }
 
-async function insertCalendario(columns: string[], values: unknown[], retryColumns: string[]) {
+async function insertCalendario(columns: string[], values: unknown[], retryColumns: string[]): Promise<boolean> {
   try {
     await q(
       `INSERT INTO calendario (${columns.join(', ')}) VALUES (${columns.map((_, index) => `$${index + 1}`).join(', ')})`,
       values,
     )
+    return false
   } catch (error) {
     if (!isMissingDbColumn(error)) throw error
+    const missingCol = error instanceof Error ? (error.message.match(/column "([^"]+)"/)?.[1] ?? 'unknown') : 'unknown'
+    console.warn(`[insertCalendario] schema fallback: colonna "${missingCol}" mancante, retry con colonne base`)
     const retryValues = retryColumns.map(column => values[columns.indexOf(column)])
     await q(
       `INSERT INTO calendario (${retryColumns.join(', ')}) VALUES (${retryColumns.map((_, index) => `$${index + 1}`).join(', ')})`,
       retryValues,
     )
+    return true
   }
 }
 
@@ -554,7 +558,7 @@ export async function POST(request: Request) {
       jsonbParam(pickJson(parsed, ['content_checklist', 'checklist'])),
     ]
 
-    await insertCalendario(insertColumns, insertValues, [
+    const schemaFallback = await insertCalendario(insertColumns, insertValues, [
       'cliente_id', 'id_contenuto', 'data_pubblicazione', 'ora_pubblicazione',
       'canale', 'formato', 'obiettivo', 'tema', 'product_id', 'nome_prodotto',
       'hook', 'caption', 'hashtag', 'cta', 'note', 'status', 'media_type',
@@ -570,6 +574,7 @@ export async function POST(request: Request) {
       tipo: 'calendario',
       quality_level: generatedQuality,
       quality_downgraded: isQualityDowngraded(requestedQuality, generatedQuality),
+      ...(schemaFallback && { schema_fallback: true, warning: 'Eseguire npm run migrate per abilitare campi qualità e ottimizzazione' }),
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Errore generazione'

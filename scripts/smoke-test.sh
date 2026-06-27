@@ -46,7 +46,7 @@ PAGES=(
 
 for page in "${PAGES[@]}"; do
   STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$HOST$page")
-  if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ]; then
+  if [ "$STATUS" = "200" ] || [ "$STATUS" = "302" ] || [ "$STATUS" = "307" ]; then
     green "$page → $STATUS"
   else
     red "$page → $STATUS"
@@ -67,6 +67,8 @@ for api in "${APIS[@]}"; do
   STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$HOST$api")
   if [ "$STATUS" = "200" ]; then
     green "$api → $STATUS"
+  elif [ "$MODE" != "demo" ] && [ "$STATUS" = "401" ]; then
+    green "$api → $STATUS (auth required in production ✓)"
   else
     red "$api → $STATUS"
   fi
@@ -119,7 +121,7 @@ echo ""
 echo "  🎭 Demo Mode"
 sep
 DASH=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$HOST/dashboard")
-if [ "$DASH" = "200" ] || [ "$DASH" = "302" ]; then
+if [ "$DASH" = "200" ] || [ "$DASH" = "302" ] || [ "$DASH" = "307" ]; then
   green "Dashboard accessible: $DASH"
 else
   red "Dashboard failed: $DASH"
