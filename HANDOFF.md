@@ -301,9 +301,12 @@ Audit/fix P0 completato il 26/06/2026:
 
 - [x] **AI timeout fix**: AbortController 60s su OpenRouter/Anthropic, 90s client-side su piano
 - [x] **maxTokens ridotti**: 12000→6000, 9500→4500, 8000→3000 per generazione piano
-- [ ] **Eseguire migration 015 su Neon**: dopo il deploy, `npm run migrate` applica `015_generation_optimization_cycle.sql`; content/plan hanno comunque fallback insert compatibile.
 - [x] **Fix default model**: default spostato a `nvidia/nemotron-3-ultra-550b-a55b:free`; Claude resta solo fallback Anthropic diretto.
-- [ ] **API key OpenRouter/Blotato**: per test end-to-end produzione
+- [x] **extractJSON/extractJSONArray**: SyntaxError catturata, messaggio leggibile invece di 500 generico.
+- [x] **insertCalendario fallback osservabile**: ritorna bool, logga colonna mancante, aggiunge `schema_fallback`+`warning` nella risposta API quando migration mancante.
+- [x] **Smoke test robusto**: accetta 307 (Next.js auth redirect) e 401 (auth required) come risposte valide in produzione — ora 30/30 su Render live.
+- [ ] **⚠️ BLOCCANTE — Migration 015 su Neon live**: `migrationCount=14` su Render. Eseguire in Render Shell: `npm run migrate`. Applica `015_generation_optimization_cycle.sql` (campi ottimizzazione ciclo). Il fallback insert è attivo nel frattempo.
+- [ ] **API key Blotato**: per abilitare pubblicazione automatica (`blotatoApiKey=false` su Render).
 - [ ] **Multi-lingua**: generazione contenuti in altre lingue
 - [ ] **White-label**: logo agenzia custom
 - [ ] **Stripe**: pagamenti integrati nel funnel di vendita
@@ -311,25 +314,25 @@ Audit/fix P0 completato il 26/06/2026:
 
 ---
 
-## 14. Stato Corrente Prima Del Prossimo Commit
+## 14. Stato Corrente — Audit Claude Code 2026-06-27
 
-Ultimo controllo Codex 2026-06-27:
-- Repo remoto `origin/main` allineato a commit `aa8620a`.
-- Le ultime modifiche locali **non sono ancora committate né pushate**.
-- Validazioni locali eseguite dopo i fix: `npm run lint` ✅ zero warning, `npm run build` ✅, `npm run migrate:dry` ✅, `npm audit --audit-level=moderate` ✅.
-- Health live pubblico: `https://social-media-manager-zte4.onrender.com/api/system/health` risponde `status=ready`, `mode=production`.
-- Live health segnala ancora `migrationCount=14`: manca `015_generation_optimization_cycle.sql` su Neon live.
-- Live health segnala `openrouter=true`, `anthropic=false`, `blotatoApiKey=false`, `blotatoWebhookSecret=true`.
-- GitHub Actions su `main`: ultimo commit `aa8620a` success ✅; run fallite precedenti (`45edec1` → `7a50b80`) erano tutte su step `Lint` e risultano superate da `878bad9` in poi.
-- Render MCP/CLI non disponibile in questa sessione (`RENDER_API_KEY` assente, Render CLI assente): non è possibile leggere storico privato dei deploy Render da qui; usare dashboard Render o configurare MCP.
+- Repo remoto `origin/main` su commit `7b7672d` (fix: stabilizza generazione asset seo e deploy readiness).
+- Working tree pulito, nessuna modifica locale pendente.
+- Validazioni: `npm run lint` ✅, `npm run build` ✅ (48 route), `npm run migrate:dry` ✅ (15 migration), `npm audit --audit-level=moderate` ✅ 0 vuln.
+- Smoke test live Render: **30 PASS / 0 FAIL** su `https://social-media-manager-zte4.onrender.com`.
+- Health live: `status=ready`, `mode=production`, `migrationCount=14` (manca 015), `openrouter=true`, `anthropic=false`, `blotatoApiKey=false`.
+- **Azione obbligatoria**: eseguire `npm run migrate` in Render Shell per portare `migrationCount` a 15.
+- Render MCP non disponibile (`RENDER_API_KEY` assente): usare dashboard Render o Render CLI per storico deploy.
 
-Modifiche locali principali da revisionare prima del commit:
-- SEO/GEO audit fallback deterministico e cliente-aware: `app/api/generate/seo-audit/route.ts`.
-- Upload immagini: route file servita da API e preview locale immediata: `app/api/assets/file/[clienteId]/[filename]/route.ts`, `app/api/assets/upload/route.ts`, `app/dashboard/social/[platform]/page.tsx`.
-- AI default/fallback: default OpenRouter valido, skip modelli Claude non validi su OpenRouter: `lib/ai-client.ts`, `lib/ai.ts`, endpoint `/api/generate/*`.
-- Mobile-first AI selector: `components/AIModelSelector.tsx`.
-- Dashboard workflow: primo step operativo ora è `Piano editoriale`: `app/dashboard/page.tsx`.
-- Warning lint storici rimossi: pagine dashboard, componenti e helper.
+Fix applicati in `7b7672d` (già su origin):
+- `lib/ai.ts`: `extractJSON`/`extractJSONArray` catturano `SyntaxError` → errore leggibile invece di 500 generico.
+- `app/api/generate/content/route.ts` + `plan/route.ts`: `insertCalendario` logga colonna mancante, ritorna `schema_fallback: true` + `warning` nella risposta se fallback schema usato.
+- `scripts/smoke-test.sh`: accetta 307 e 401 produzione — **30/0 su Render live**.
+- `lib/ai.ts`: `canUseRequestedOnOpenRouter` previene Claude models su OpenRouter.
+- `app/api/generate/seo-audit/route.ts`: fallback deterministico cliente-aware.
+- `app/api/assets/upload/route.ts` + route file: upload immagini con preview locale immediata.
+- `components/AIModelSelector.tsx`: mobile-first.
+- Tutte le route `/api/generate/*`: `requireAuth()` su ogni endpoint.
 
 ---
 
