@@ -2,11 +2,12 @@
 
 > Documento per AI agent multipli (Claude CLI, Cursor/Cline, Codex). Lavoriamo come un team unificato.
 
-**Data ultimo aggiornamento**: 2026-06-27 (sessione: bridge AI + multi-provider + security)
+**Data ultimo aggiornamento**: 2026-06-27 (sessione: debug E2E live + fix go-live critici)
 **Progetto**: Social Automation — SaaS social media management per agenzie
 **Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Anthropic/OpenRouter/Gemini/OpenCode)
-**Percorso locale**: `/Users/md/Downloads/social_automation_v2`
+**Percorso locale**: `/Users/md/Documents/social_automation_v2`
 **Repo**: `https://github.com/Marco26-hub/social-media-manager.git`
+**Deploy live**: `https://social-media-manager-zte4.onrender.com` (Render free, service id `srv-d8up0lvavr4c73fjd1k0`)
 
 ---
 
@@ -56,6 +57,59 @@ Tutto su `main`, tree pulito, `tsc`+`eslint` verdi.
 **TODO agenti v2** (riscrivere sullo stack reale): 4 agenti (weekly-seo, weekly-competitor, weekly-client-report, daily-ads-optimizer) usando `lib/db.ts` `q()` (NON Supabase), schema reale (`attivo`, non `is_active`), `callAI` da `lib/ai.ts`, + entry point: API route `/api/agents/<nome>` protette da secret + scheduler (cron Render `type: cron` o cron-job.org).
 
 **Pending noti**: zero test automatici; `score-content` (calendario) ha feedback locale ma non è nel GenerationBar globale; `BLOTATO_API_KEY` mancante sul deploy (autopublish off).
+
+---
+
+## 🆕 Sessione 2026-06-27 bis (Claude Code) — debug E2E live + fix go-live
+
+Test maniacale in produzione (curl autenticato su Render live, login `admin`/`1234567`). Trovati e fixati **4 bug, 2 critici**. Tutto su `main`, `tsc`+`next build` verdi, deploy live verificato.
+
+| Commit | Severità | Cosa |
+|--------|----------|------|
+| `01e486e` `479e7a9` | 🟠 alto | **scrape-contacts** riscritto: prima passava solo l'URL all'AI (no internet) → contatti **inventati**. Ora vero `fetch` HTML + regex (email/tel/wa/tg/social/PIVA), SSRF guard, AI solo per arricchire indirizzo/orari dal testo reale. Filtra email placeholder + `facebook.com/profile.php`. Marker `fonte: real_scrape`. |
+| `9ef76d7` | 🔴 CRITICO | **Portale approvazione cliente ROTTO**: `approval_tokens.cliente_id` è `text`, ma `calendario.cliente_id`/`clienti.id` sono `uuid`. Il JOIN col-col falliva con `operator does not exist: uuid = text` → ogni `GET /api/data/approve` dava 503, portale cliente inutilizzabile. Fix: `ct.cliente_id::uuid` nei due JOIN. |
+| `15a9b02` | 🔴 CRITICO | **Link approvazione/asset → dominio morto**. `NEXTAUTH_URL` su Render punta a `social-automation.onrender.com` (404). Nuovo `lib/base-url.ts` `getPublicBaseUrl(request)` deriva la base URL dall'host reale (`x-forwarded-host`) → link auto-corretti. Usato in approve POST + assets upload. **+** `lib/api-error.ts`: mappa errori noti a status corretti (Non autenticato→401, Accesso negato→403, cliente mancante→400, JSON malformato→400) invece di 500 generico su 19 route. |
+| `02e2105` | 🟡 medio | assets upload catch → `apiError` (no-auth → 401 non 500). |
+
+**Verificato live OK**: DB (14 migration, admin, 2 clienti pino+silkincom), auth enforcement (401/403/307), 10 data route read, brand PATCH write+persist+revert, approval E2E (dopo fix), security headers (CSP/HSTS/X-Frame DENY/nosniff tutti presenti), SQL injection neutralizzata (query parametrizzate), rate limiter codice OK (20/60s/IP, ⚠️ per-istanza), cascade Gemini/OpenCode cablate senza key leak, frontend selettori Gemini/OpenCode deployati.
+
+**🔴 BLOCCO GO-LIVE architetturale rimasto**: **upload immagini effimero**. `app/api/assets/upload` scrive su `public/uploads/` = filesystem Render **volatile** → le immagini **spariscono a ogni deploy/restart**. Nessun object storage configurato (no S3/R2/Cloudinary, no disk persistente in `render.yaml`). I media nei post pubblicati si rompono. **Serve Cloudflare R2** (free tier, S3-compatible) o equivalente prima di vendere self-service.
+
+**⚠️ Config Render da sistemare (azione utente, non codice)**:
+- `NEXTAUTH_URL` + `NEXT_PUBLIC_SITE_URL` → cambiare in `https://social-media-manager-zte4.onrender.com` (ora puntano al dominio morto; il codice auto-corregge i link ma le env vanno comunque fixate per NextAuth/referrer)
+- `ANTHROPIC_API_KEY` mancante (no fallback Anthropic)
+- `BLOTATO_API_KEY` mancante (no autopublish)
+- `dry_run: TRUE` in settings silkincom → post mai pubblicati
+- AI generation `/api/generate/*` fallisce con 429: OpenRouter `:free` esaurito → serve key pagante o incollare key Gemini (free) / OpenCode nel pannello AI
+
+**Non testabile da questa sessione**: isolamento multi-tenant con utente **non-admin** (admin=super_admin bypassa `requireClienteAccess`; codice corretto ma serve utente cliente reale per prova runtime); UI/click reali (Chrome MCP + computer-use non disponibili).
+
+**Nuovi file**: `lib/base-url.ts`, `lib/api-error.ts`.
+
+---
+
+## 🔜 PROSSIMA SESSIONE — Pagina Consumi Token (generazione + agenti)
+
+Obiettivo utente: pagina che mostra **token disponibili** e **token consumati/da usare** per ogni generazione AI e per ogni agente. Visione: vedere a colpo d'occhio quanti token restano e quanto costa ogni operazione.
+
+### Cosa serve (piano d'attacco)
+1. **Tracking consumo** — `lib/ai.ts` `callAI()` deve restituire `usage` (prompt_tokens, completion_tokens, total) da OGNI provider:
+   - OpenRouter: campo `usage` nella response (già OpenAI-compatible)
+   - Gemini: `usageMetadata.{promptTokenCount,candidatesTokenCount,totalTokenCount}`
+   - OpenCode: `usage` (OpenAI-compatible)
+   - Anthropic: `usage.{input_tokens,output_tokens}`
+2. **Persistenza** — nuova migration `016_token_usage.sql`: tabella `token_usage` (`id`, `cliente_id`, `provider`, `model`, `operazione` es. content/plan/ads/agent-seo, `agent_name` nullable, `prompt_tokens`, `completion_tokens`, `total_tokens`, `cost_estimate` nullable, `created_at`). Ogni route `/api/generate/*` (e gli agenti v2) scrive una riga dopo la chiamata AI.
+3. **Saldo disponibile** — dove il provider lo espone:
+   - OpenRouter: `GET https://openrouter.ai/api/v1/auth/key` → `{ limit, usage, limit_remaining }` (con la key dell'account)
+   - Anthropic/Gemini: niente saldo token diretto via API → mostrare "consumo storico" + (se pagante) link alla console. Per i free: mostrare rate-limit/quota note, non un saldo.
+4. **API** — `GET /api/data/token-usage` (aggregati per provider/operazione/agente, filtro periodo) + eventuale `GET /api/system/token-balance` (saldo OpenRouter live).
+5. **UI** — `/dashboard/consumi` (o `/dashboard/token`): card "Disponibile" (saldo OpenRouter), grafico consumo per giorno, breakdown per operazione e per agente, costo stimato. Aggiungere voce in `components/Sidebar.tsx`.
+6. **Collegamento agenti** — quando gli agenti v2 esistono (vedi TODO sotto), ogni run agente scrive `token_usage` con `agent_name` → la pagina separa "generazione manuale" vs "agenti automatici".
+
+### Note implementazione
+- `ConfirmModal` ha già una **stima token** pre-generazione: riusare quella logica per il preventivo, poi confrontare con il consumo reale loggato.
+- Costo stimato: mantenere una mappa `model → $/1M token` in `lib/ai-pricing.ts` (free = 0, paganti con prezzo noto). Aggiornabile a mano.
+- Demo mode: la pagina deve funzionare con dati sintetici (rispettare regola `isDemo()`).
 
 ---
 
@@ -331,6 +385,10 @@ Audit/fix P0 completato il 26/06/2026:
 - [x] **insertCalendario fallback osservabile**: ritorna bool, logga colonna mancante, aggiunge `schema_fallback`+`warning` nella risposta API quando migration mancante.
 - [x] **Smoke test robusto**: accetta 307 (Next.js auth redirect) e 401 (auth required) come risposte valide in produzione — ora 30/30 su Render live.
 - [x] **Health migration senza falso allarme**: `/api/system/health` verifica `latestRequiredMigration=015_generation_optimization_cycle.sql` e `latestMigrationApplied=true`; `migrationCount=14` è normale perché non esiste una migration `003`.
+- [ ] **🔜 Pagina Consumi Token** (PROSSIMA SESSIONE): token disponibili + consumati per generazione e per agenti. Piano dettagliato nella sezione "🔜 PROSSIMA SESSIONE" in cima al doc.
+- [ ] **🔴 Object storage immagini** (Cloudflare R2/S3): blocco go-live, upload attualmente effimero su Render.
+- [ ] **Agenti v2 su Neon + cron**: riscrivere i 4 agenti rimossi (weekly-seo, weekly-competitor, weekly-client-report, daily-ads-optimizer) su stack reale `lib/db.ts`+`callAI`, route `/api/agents/<nome>` protette da secret, scheduler cron Render.
+- [ ] **Fix env Render**: `NEXTAUTH_URL`/`NEXT_PUBLIC_SITE_URL` su dominio reale, `ANTHROPIC_API_KEY`, `BLOTATO_API_KEY`, `dry_run=FALSE`.
 - [ ] **API key Blotato**: per abilitare pubblicazione automatica (`blotatoApiKey=false` su Render).
 - [ ] **Multi-lingua**: generazione contenuti in altre lingue
 - [ ] **White-label**: logo agenzia custom
@@ -366,8 +424,8 @@ Fix applicati in `7b7672d` (già su origin):
 ```bash
 DATABASE_URL=postgresql://...    # Neon
 AUTH_SECRET=...                   # NextAuth
-NEXTAUTH_URL=...                  # URL produzione
-NEXT_PUBLIC_SITE_URL=...          # URL pubblico per link e referrer
+NEXTAUTH_URL=...                  # URL produzione — ⚠️ DEVE essere https://social-media-manager-zte4.onrender.com (NON social-automation.onrender.com che è morto/404)
+NEXT_PUBLIC_SITE_URL=...          # URL pubblico per link e referrer — stesso dominio reale di NEXTAUTH_URL
 ANTHROPIC_API_KEY=...             # Claude (opzionale se usi OpenRouter)
 OPENROUTER_API_KEY=...            # Modelli free (opzionale se usi Claude)
 NEXT_PUBLIC_DEMO_MODE=true        # Solo demo controllata, mai produzione venduta
@@ -398,7 +456,7 @@ npm run build
 - Setup live in app: `/dashboard/setup` legge `/api/system/health` e mostra checklist produzione, credenziali admin, comandi Render Shell e readiness vendita.
 - **⚠️ Dopo ogni deploy**, controllare `/api/system/health`: se `latestMigrationApplied=false`, eseguire `npm run migrate` sul Neon DB.
 - Upload asset contenuti: `/dashboard/social/[platform]` permette upload immagini o URL pubblici; content/blog usano gli asset nei prompt e salvano media/cover.
-- Nota storage: `public/uploads` su Render è filesystem runtime, utile per servizio gestito; per SaaS self-service serve storage persistente S3/R2/Cloudinary.
+- **🔴 Nota storage (BLOCCO GO-LIVE)**: `public/uploads` su Render è filesystem **effimero** — le immagini caricate **spariscono a ogni deploy/restart**, rompendo i media nei post già pubblicati. Confermato 2026-06-27: nessun object storage configurato, nessun disk persistente in `render.yaml`. **Prima del go-live self-service serve Cloudflare R2** (free tier S3-compatible) o S3/Cloudinary: cambiare `assets/upload` per scrivere su bucket e ritornare URL del bucket invece di `/api/assets/file/...`.
 
 ### Controllo Deploy Render / OpenCode
 - Stato live pubblico verificabile senza auth: `curl https://social-media-manager-zte4.onrender.com/api/system/health`.
