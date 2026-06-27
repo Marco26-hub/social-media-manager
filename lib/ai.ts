@@ -86,6 +86,39 @@ function buildFailureMessage(attempts: AIAttempt[]) {
   return `Generazione AI fallita dopo ${attempts.length} tentativo/i: ${summary}`
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+// Bridge affidabilità free tier: attesa massima prima del ritentativo, per
+// restare sotto il timeout del client (95s). Usa il Retry-After più alto
+// suggerito dai 429 (cap 28s); default 8s se i provider non lo indicano.
+const MAX_RETRY_WAIT_MS = 28000
+function rateLimitWaitMs(failures: AIAttempt[]): number {
+  const secs = failures
+    .map(a => Number(a.error?.match(/retry (\d+)s/)?.[1] || 0))
+    .filter(n => n > 0)
+  const max = secs.length ? Math.max(...secs) : 8
+  return Math.min(max * 1000 + 500, MAX_RETRY_WAIT_MS)
+}
+
+async function tryOpenRouterModel(
+  model: string,
+  systemPrompt: string | undefined,
+  userPrompt: string,
+  key: string,
+  maxTokens: number,
+  attempts: AIAttempt[],
+): Promise<string | null> {
+  try {
+    const res = await callOpenRouter(model, systemPrompt, userPrompt, key, maxTokens)
+    if (!res.trim()) throw new Error('Risposta AI vuota')
+    recordAttempt(attempts, { provider: 'openrouter', model, ok: true })
+    return res
+  } catch (e) {
+    recordAttempt(attempts, { provider: 'openrouter', model, ok: false, error: sanitizeAIError(e) })
+    return null
+  }
+}
+
 export async function callAI(params: {
   model: string
   systemPrompt?: string
@@ -106,33 +139,38 @@ export async function callAI(params: {
 
   const canUseRequestedOnOpenRouter = !isAnthropicModel(model) || model.startsWith('anthropic/')
 
-  // Try 1: OpenRouter (if key available)
+  // Try 1: OpenRouter. Bridge affidabilità: prima ondata veloce sul modello
+  // richiesto + fallback; se TUTTO è rate-limited, attende il Retry-After e
+  // ritenta una volta (le code free upstream si liberano in ~20-30s). Questo
+  // converte i 429 "retry shortly" in successi senza alcuna API key a pagamento.
   if (orKey) {
-    if (canUseRequestedOnOpenRouter) {
-      try {
-        const res = await callOpenRouter(model, systemPrompt, userPrompt, orKey, maxTokens)
-        if (!res.trim()) throw new Error('Risposta AI vuota')
-        recordAttempt(attempts, { provider: 'openrouter', model, ok: true })
-        return res
-      } catch (e) {
-        recordAttempt(attempts, { provider: 'openrouter', model, ok: false, error: sanitizeAIError(e) })
+    const orModels: string[] = []
+    if (canUseRequestedOnOpenRouter) orModels.push(model)
+    if (silentFallback) {
+      let n = 0
+      for (const fb of FALLBACK_MODELS) {
+        if (fb === model || isAnthropicModel(fb)) continue
+        if (n >= MAX_OPENROUTER_FALLBACKS) break
+        n++
+        orModels.push(fb)
       }
     }
 
-    if (silentFallback) {
-      let fallbacksTried = 0
-      for (const fb of FALLBACK_MODELS) {
-        if (fb === model || isAnthropicModel(fb)) continue
-        if (fallbacksTried >= MAX_OPENROUTER_FALLBACKS) break
-        fallbacksTried++
-        try {
-          const res = await callOpenRouter(fb, systemPrompt, userPrompt, orKey, maxTokens)
-          if (!res.trim()) throw new Error('Risposta AI vuota')
-          recordAttempt(attempts, { provider: 'openrouter', model: fb, ok: true })
-          return res
-        } catch (fallbackError) {
-          recordAttempt(attempts, { provider: 'openrouter', model: fb, ok: false, error: sanitizeAIError(fallbackError) })
-        }
+    // Ondata 1
+    for (const m of orModels) {
+      const res = await tryOpenRouterModel(m, systemPrompt, userPrompt, orKey, maxTokens, attempts)
+      if (res) return res
+    }
+
+    // Ondata 2: solo se i fallimenti OpenRouter sono TUTTI rate-limit.
+    const orFailures = attempts.filter(a => a.provider === 'openrouter' && !a.ok)
+    if (orModels.length && orFailures.length && orFailures.every(a => isRateLimit(a.error))) {
+      const waitMs = rateLimitWaitMs(orFailures)
+      if (waitMs > 0) {
+        console.warn('[AI bridge]', `modelli free rate-limited, attendo ${Math.round(waitMs / 1000)}s e ritento`)
+        await sleep(waitMs)
+        const res = await tryOpenRouterModel(orModels[0], systemPrompt, userPrompt, orKey, maxTokens, attempts)
+        if (res) return res
       }
     }
   }
