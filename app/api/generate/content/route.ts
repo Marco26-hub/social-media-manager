@@ -117,7 +117,8 @@ const PROFESSIONAL_STANDARDS = `STANDARD PROFESSIONALI (vincolanti):
 - SPECIFICITÀ: usa dettagli reali (materiale, taglio, vestibilità, occasione, sensazione). Vietati aggettivi vuoti ("bellissimo", "unico", "speciale").
 - VIETATE queste frasi-cliché (e qualsiasi loro variante): "eleganza senza sforzo", "lusso discreto", "il tuo nuovo alleato di stile", "non può mancare nel tuo armadio", "stile senza compromessi", "scopri il/la nostro/a", "un must-have", "perfetto per ogni occasione", "leggerezza e classe", "comfort e stile", "eleganza leggera", "senza sforzo". Se stai per scriverle, RISCRIVI da capo.
 - VARIETÀ: questo contenuto deve essere DIVERSO da un post generico — attacco, ritmo e struttura non scontati. Una sola idea forte, sviluppata bene.
-- Mostra, non dire. Concretezza > genericità. Italiano naturale, ritmo umano, zero corporate-speak.`
+- Mostra, non dire. Concretezza > genericità. Italiano naturale, ritmo umano, zero corporate-speak.
+- GRAMMATICA E ORTOGRAFIA ITALIANE PERFETTE: ogni parola separata dallo spazio giusto (MAI parole attaccate tipo "Eleganzasenza", "stilesenza"), accenti corretti (è/é, perché, città, qualità), apostrofi corretti (un'estate, l'eleganza, po'), punteggiatura e spaziatura pulite, nessun refuso. RILEGGI il testo prima di restituirlo: se trovi parole attaccate o accenti sbagliati, correggi.`
 
 // Angoli creativi ruotati a ogni generazione: forzano approcci diversi così i
 // post consecutivi non si somigliano (il problema della ripetizione AI).
@@ -435,7 +436,7 @@ CTA base: ${brand.cta_base || ''}
 function buildSystemPrompt(brand: Record<string, unknown> | null, quality: string): string {
   const settore = (brand as Record<string, string>)?.settore || 'moda ed e-commerce'
   const nome = (brand as Record<string, string>)?.brand_name || 'brand'
-  return `Sei un creative strategist e copywriter social media senior (10+ anni, brand premium) specializzato in ${settore} per il brand ${nome}. Livello qualità: ${quality}. Il tuo copy deve sembrare scritto da un professionista, non da un'AI: hook che fermano lo scroll, specificità concreta, zero cliché e zero frasi-riempitivo. Evita le formule generiche da didascalia automatica. Rispondi SEMPRE e SOLO con JSON valido, nessun altro testo. Usa tono di voce, parole-chiave e stile del contesto brand. Non inventare claim, prezzi, stock o dati non forniti.`
+  return `Sei un creative strategist e copywriter social media senior (10+ anni, brand premium) specializzato in ${settore} per il brand ${nome}. Livello qualità: ${quality}. Il tuo copy deve sembrare scritto da un professionista, non da un'AI: hook che fermano lo scroll, specificità concreta, zero cliché e zero frasi-riempitivo. Evita le formule generiche da didascalia automatica. GRAMMATICA E ORTOGRAFIA ITALIANE IMPECCABILI: mai parole attaccate (es. "Eleganzasenza"), accenti e apostrofi corretti, nessun refuso — rileggi prima di restituire. Rispondi SEMPRE e SOLO con JSON valido, nessun altro testo. Usa tono di voce, parole-chiave e stile del contesto brand. Non inventare claim, prezzi, stock o dati non forniti.`
 }
 
 export async function POST(request: Request) {

@@ -131,7 +131,7 @@ export async function POST(request: Request) {
 
     const aiRes = await callAI({
       model: model || 'meta-llama/llama-3.3-70b-instruct:free',
-      systemPrompt: `${systemPrompts[platform] || 'Sei un ads specialist. Rispondi SOLO con JSON valido.'} Livello qualità: ${contentQuality}. Non inventare dati non forniti; formula ipotesi misurabili.`,
+      systemPrompt: `${systemPrompts[platform] || 'Sei un ads specialist. Rispondi SOLO con JSON valido.'} Livello qualità: ${contentQuality}. GRAMMATICA E ORTOGRAFIA ITALIANE IMPECCABILI: mai parole attaccate, accenti e apostrofi corretti, nessun refuso. Non inventare dati non forniti; formula ipotesi misurabili.`,
       userPrompt,
       openrouterKey: openrouter_key, geminiKey: gemini_key, opencodeKey: opencode_key || undefined,
       maxTokens: contentQuality === 'high' ? 5200 : contentQuality === 'medium' ? 4200 : 3000,

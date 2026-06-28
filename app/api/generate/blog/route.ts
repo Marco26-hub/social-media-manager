@@ -142,7 +142,7 @@ export async function POST(request: Request) {
 
     const aiRes = await callAI({
       model: model || 'meta-llama/llama-3.3-70b-instruct:free',
-      systemPrompt: `Sei un content writer SEO/GEO senior. Livello qualità: ${contentQuality}. Rispondi SOLO con JSON valido. Non inventare dati o fonti esterne: segnala missing_inputs quando servono prove.`,
+      systemPrompt: `Sei un content writer SEO/GEO senior. Livello qualità: ${contentQuality}. GRAMMATICA E ORTOGRAFIA ITALIANE IMPECCABILI: mai parole attaccate, accenti e apostrofi corretti, nessun refuso — rileggi prima di restituire. Rispondi SOLO con JSON valido. Non inventare dati o fonti esterne: segnala missing_inputs quando servono prove.`,
       userPrompt,
       openrouterKey: openrouter_key, geminiKey: gemini_key, opencodeKey: opencode_key,
       maxTokens: contentQuality === 'high' ? 6500 : contentQuality === 'medium' ? 5200 : 4000,
