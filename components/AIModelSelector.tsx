@@ -53,6 +53,12 @@ const MODELS: Model[] = [
   { id: 'meta-llama/llama-3.3-70b-instruct:free',   name: 'Llama 3.3 70B',                 provider: 'openrouter', tier: 'free', context: '128K', speed: 'fast',   quality: 'high', badge: 'Consigliato',    recommendedFor: ['piano-editoriale', 'seo-audit', 'blog-articolo', 'contenuti-social'] },
   { id: 'nousresearch/hermes-3-llama-3.1-405b:free', name: 'Hermes 3 405B',                provider: 'openrouter', tier: 'free', context: '131K', speed: 'medium', quality: 'top',  badge: '405B' },
 
+  // OpenRouter A PAGAMENTO (richiede credito sull'account): NIENTE code/429,
+  // capacità dedicata. Costo irrisorio (~0,001€/post). Servono con la key OpenRouter.
+  { id: 'meta-llama/llama-3.3-70b-instruct',  name: 'Llama 3.3 70B (paid)', provider: 'openrouter', tier: 'paid', context: '131K', speed: 'fast',   quality: 'high', badge: '★ Affidabile · ~0,001€', recommendedFor: ['contenuti-social', 'piano-editoriale', 'seo-audit', 'blog-articolo'] },
+  { id: 'openai/gpt-4o-mini',                 name: 'GPT-4o mini',          provider: 'openrouter', tier: 'paid', context: '128K', speed: 'fast',   quality: 'high', badge: 'OpenAI · affidabile' },
+  { id: 'deepseek/deepseek-chat',             name: 'DeepSeek Chat',        provider: 'openrouter', tier: 'paid', context: '131K', speed: 'medium', quality: 'top',  badge: 'Economico' },
+
   // Google Gemini (free tier, key gratuita su aistudio.google.com)
   { id: 'gemini-2.0-flash',       name: 'Gemini 2.0 Flash',      provider: 'gemini', tier: 'free', context: '1M',   speed: 'fast',   quality: 'high', badge: 'Google · Free', recommendedFor: ['contenuti-social', 'piano-editoriale', 'seo-audit', 'blog-articolo'] },
   { id: 'gemini-2.0-flash-lite',  name: 'Gemini 2.0 Flash Lite', provider: 'gemini', tier: 'free', context: '1M',   speed: 'fast',   quality: 'medium', badge: 'Google · Veloce' },
@@ -158,6 +164,7 @@ export default function AIModelSelector({ task }: { task?: Task }) {
   const geminiModels = filtered.filter(m => m.provider === 'gemini')
   const opencodeModels = filtered.filter(m => m.provider === 'opencode')
   const freeModels = filtered.filter(m => m.provider === 'openrouter' && m.tier === 'free')
+  const paidOpenRouterModels = filtered.filter(m => m.provider === 'openrouter' && m.tier === 'paid')
   const needsOrKey = selected.provider === 'openrouter' && !savedKey
   const needsGemKey = selected.provider === 'gemini' && !savedGemKey
   const needsOpcKey = selected.provider === 'opencode' && !savedOpcKey
@@ -326,6 +333,21 @@ export default function AIModelSelector({ task }: { task?: Task }) {
                         <span className="text-[9px] px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full font-bold tracking-normal">a pagamento</span>
                       </div>
                       {opencodeModels.map(m => (
+                        <ModelOption
+                          key={m.id} m={m} selected={m.id === selectedId}
+                          recommended={m.id === recommendedId}
+                          onClick={() => selectModel(m.id)}
+                        />
+                      ))}
+                    </>
+                  )}
+                  {paidOpenRouterModels.length > 0 && (
+                    <>
+                      <div className="px-3 py-2 bg-emerald-50 sticky top-0 z-10 flex items-center gap-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">OpenRouter · a pagamento</p>
+                        <span className="text-[9px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-bold tracking-normal">no code · serve credito</span>
+                      </div>
+                      {paidOpenRouterModels.map(m => (
                         <ModelOption
                           key={m.id} m={m} selected={m.id === selectedId}
                           recommended={m.id === recommendedId}
