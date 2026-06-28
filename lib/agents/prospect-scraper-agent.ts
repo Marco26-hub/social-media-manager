@@ -43,6 +43,8 @@ export interface ProspectScraperResult {
   }
   leads: ScrapedLead[]
   duration_seconds: number
+  simulated?: boolean
+  warning?: string
 }
 
 class ProspectScraperAgent {
@@ -96,6 +98,10 @@ class ProspectScraperAgent {
         breakdown,
         leads: savedLeads,
         duration_seconds: duration,
+        // ONESTÀ: i lead sono DIMOSTRATIVI (hardcoded), non scraping reale.
+        // Il flag + warning impediscono di scambiarli per contatti veri.
+        simulated: true,
+        warning: 'DATI DIMOSTRATIVI: lo scraper reale non è ancora attivo. Questi lead sono di esempio, non contatti reali.',
       }
     } catch (error) {
       console.error(`[${executionId}] Error:`, error)
@@ -256,7 +262,9 @@ class ProspectScraperAgent {
 
     for (const lead of allLeads) {
       if (!uniqueByEmail.has(lead.email)) {
-        uniqueByEmail.set(lead.email, lead)
+        // Marca ogni lead come dimostrativo: identificabile nella lista/DB.
+        const tagged = { ...lead, notes: `[DEMO] ${lead.notes || 'lead di esempio'}` }
+        uniqueByEmail.set(lead.email, tagged)
       }
     }
 

@@ -71,7 +71,8 @@ export default function LeadsPage() {
 
       // Reload leads
       await loadLeads()
-      alert(`✅ Trovati ${result.total_leads} lead!\n\nCALDO: ${result.breakdown.CALDO}\nTIEPIDO: ${result.breakdown.TIEPIDO}\nFREDDO: ${result.breakdown.FREDDO}`)
+      const warn = result.simulated ? `\n\n⚠️ ${result.warning || 'DATI DIMOSTRATIVI: non sono contatti reali.'}` : ''
+      alert(`✅ Trovati ${result.total_leads} lead!\n\nCALDO: ${result.breakdown.CALDO}\nTIEPIDO: ${result.breakdown.TIEPIDO}\nFREDDO: ${result.breakdown.FREDDO}${warn}`)
     } catch (error) {
       console.error('Error executing scraper:', error)
       alert('❌ Errore esecuzione scraper')

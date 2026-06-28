@@ -23,6 +23,8 @@ Aree: SEO tecnico, SEO contenuti, GEO/AI search, social coerenza, E-E-A-T, perfo
 Output SOLO JSON:
 {"data_audit":"YYYY-MM-DD","periodo":"","score_globale":0,"score_seo_tecnico":0,"score_seo_contenuti":0,"score_geo_ai_search":0,"score_social_coerenza":0,"score_eeat":0,"score_performance_social":0,"riepilogo":"","punti_forti":[],"punti_critici":[],"miglioramenti":[{"area":"","azione":"","impatto":"","effort":"","deadline_suggerita":""}],"kpi_da_monitorare":[{"metrica":"","valore_attuale":"","target":""}],"contenuti_suggeriti":[{"tema":"","formato":"","canale":"","priorita":""}]}`
 
+// Usato SOLO per il ramo demo (no DB): dati dimostrativi marcati `demo:true`,
+// mai persistiti. In produzione, se l'AI fallisce, si ritorna errore (niente score finti).
 function fallbackAudit(sitoUrl: string, periodo: string, brand: Record<string, unknown> | null = null) {
   const brandName = typeof brand?.brand_name === 'string' ? brand.brand_name : 'brand'
   return {
@@ -35,7 +37,7 @@ function fallbackAudit(sitoUrl: string, periodo: string, brand: Record<string, u
     score_social_coerenza: 78,
     score_eeat: 70,
     score_performance_social: 74,
-    riepilogo: `Audit fallback controllato per ${brandName} (${sitoUrl}). L'AI non ha restituito un JSON utilizzabile, quindi ho generato una base operativa sicura da completare con dati Search Console/Analytics.`,
+    riepilogo: `Audit dimostrativo per ${brandName} (${sitoUrl}). Modalità demo: collega un database e un modello AI per un audit reale.`,
     punti_forti: ['Presenza brand utilizzabile come base editoriale', 'Possibilità di collegare contenuti social, blog e prodotti'],
     punti_critici: ['Servono dati reali da Search Console/Analytics per priorità precise', 'GEO/AI search da rafforzare con FAQ, risposte dirette e proof verificabili'],
     miglioramenti: [
@@ -125,26 +127,21 @@ export async function POST(request: Request) {
       .replace('{{CONTENUTI}}', JSON.stringify(calendario || [], null, 2))
       .replace('{{LOG}}', JSON.stringify(logs || [], null, 2))
 
-    let parsed: Record<string, unknown>
-    let fallback = false
-    try {
-      const aiRes = await callAI({
-        model: model || 'meta-llama/llama-3.3-70b-instruct:free',
-        systemPrompt: 'Sei un auditor SEO/GEO senior. Rispondi con JSON valido, nessun altro testo.',
-        userPrompt,
-        openrouterKey: openrouter_key, geminiKey: gemini_key, opencodeKey: opencode_key,
-        maxTokens: 4000,
-      })
-      parsed = extractJSON(aiRes) as Record<string, unknown>
-    } catch (aiError) {
-      console.warn('[seo-audit fallback]', aiError)
-      parsed = fallbackAudit(sito_url, p, brandIdentity)
-      fallback = true
-    }
+    // NIENTE punteggi finti: se l'AI fallisce, errore pulito (come content/plan/ads).
+    // Un audit SEO con score inventati salvato nel DB inquina la cronologia e
+    // viola "tutto reale". L'utente riprova o aggiunge una key affidabile.
+    const aiRes = await callAI({
+      model: model || 'meta-llama/llama-3.3-70b-instruct:free',
+      systemPrompt: 'Sei un auditor SEO/GEO senior. Rispondi con JSON valido, nessun altro testo.',
+      userPrompt,
+      openrouterKey: openrouter_key, geminiKey: gemini_key, opencodeKey: opencode_key,
+      maxTokens: 4000,
+    })
+    const parsed = extractJSON(aiRes) as Record<string, unknown>
 
-    await saveAudit(effectiveClienteId, p, parsed, fallback ? 'fallback-deterministico' : ((model as string) || 'ai'))
+    await saveAudit(effectiveClienteId, p, parsed, (model as string) || 'ai')
 
-    return NextResponse.json({ ok: true, fallback, ...parsed })
+    return NextResponse.json({ ok: true, fallback: false, ...parsed })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Errore audit'
     return NextResponse.json({ error: msg }, { status: 500 })
