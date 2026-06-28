@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { BarChart3, Loader2, AlertTriangle, CheckCircle, Send, FileEdit, TrendingUp, Eye, Plus } from 'lucide-react'
+import { BarChart3, Loader2, AlertTriangle, CheckCircle, Send, FileEdit, TrendingUp, Eye, Plus, RefreshCw, Instagram } from 'lucide-react'
 import { readApiError } from '@/lib/ai-client'
 
 type PubPost = {
@@ -83,6 +83,7 @@ function MetricsEntry({ onSaved }: { onSaved: () => void }) {
 
 type Analytics = {
   demo: boolean
+  meta?: { configured: boolean; igConnected: number }
   kpi: { totale: number; daApprovare: number; approvati: number; pubblicati: number; errori: number; tassoApprovazione: number; tassoErrore: number }
   timeline: { giorno: string; creati: number }[]
   perCanale: Record<string, number>
@@ -125,6 +126,9 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+
   const load = useCallback(async () => {
     try {
       const res = await fetch('/api/data/analytics')
@@ -134,6 +138,27 @@ export default function AnalyticsPage() {
     setLoading(false)
   }, [])
   useEffect(() => { load() }, [load])
+
+  // Feedback dal ritorno OAuth (?connect=ok|error|no_ig).
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    const c = p.get('connect')
+    if (c === 'ok') setSyncMsg(`✅ Instagram collegato (${p.get('accounts') || 1} account). Ora sincronizza le Insights.`)
+    else if (c === 'no_ig') setSyncMsg('⚠️ Nessun account Instagram Business trovato. Serve un profilo Instagram Business/Creator collegato a una Pagina Facebook.')
+    else if (c === 'error') setSyncMsg(`❌ Collegamento fallito: ${p.get('msg') || 'errore'}`)
+  }, [])
+
+  async function syncNow() {
+    setSyncing(true); setSyncMsg(null)
+    try {
+      const res = await fetch('/api/data/metrics/sync', { method: 'POST' })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error || 'Sync fallito')
+      setSyncMsg(`✅ ${d.synced} post sincronizzati da Instagram.${d.errors?.length ? ' Avvisi: ' + d.errors.join('; ') : ''}`)
+      await load()
+    } catch (e) { setSyncMsg(`❌ ${(e as Error).message}`) }
+    setSyncing(false)
+  }
 
   if (loading) return <div className="p-8 flex justify-center py-20"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>
   if (error) return (
@@ -158,7 +183,41 @@ export default function AnalyticsPage() {
         <BarChart3 className="w-6 h-6 text-brand-600" />
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Analytics</h1>
       </div>
-      <p className="text-sm text-gray-500 mb-6">Produzione contenuti e performance — dati reali del cliente attivo.</p>
+      <p className="text-sm text-gray-500 mb-4">Produzione contenuti e performance — dati reali del cliente attivo.</p>
+
+      {/* Connessione Instagram → Insights automatiche */}
+      <div className="card p-4 mb-6 bg-gradient-to-br from-white to-pink-50/40 border-pink-100">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+              <Instagram className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-900 text-sm">Insights Instagram automatiche</p>
+              {data.meta?.igConnected ? (
+                <p className="text-xs text-green-700">✓ {data.meta.igConnected} account collegato. Sincronizza per leggere reach/engagement reali.</p>
+              ) : data.meta?.configured ? (
+                <p className="text-xs text-gray-500">Collega il profilo Instagram Business per leggere le metriche reali via API Meta.</p>
+              ) : (
+                <p className="text-xs text-amber-700">Integrazione Meta non ancora configurata (servono META_APP_ID e META_APP_SECRET su Render).</p>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2 flex-shrink-0">
+            {data.meta?.configured && (
+              data.meta.igConnected ? (
+                <button onClick={syncNow} disabled={syncing} className="btn-primary text-xs disabled:opacity-50">
+                  {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  {syncing ? 'Sincronizzo...' : 'Sincronizza Insights'}
+                </button>
+              ) : (
+                <a href="/api/social/connect" className="btn-primary text-xs"><Instagram className="w-4 h-4" /> Collega Instagram</a>
+              )
+            )}
+          </div>
+        </div>
+        {syncMsg && <p className="text-xs text-gray-700 mt-3 border-t border-gray-100 pt-2">{syncMsg}</p>}
+      </div>
 
       {/* KPI produzione */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">

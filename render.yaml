@@ -32,6 +32,11 @@ services:
         generateValue: true
       - key: SHOW_LOGIN_HINT
         value: "false"
+      # Meta Graph API — Insights Instagram/Facebook automatiche (OAuth).
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
       # Cloudflare R2 — storage immagini PERSISTENTE (senza, upload effimeri).
       - key: R2_ACCOUNT_ID
         sync: false

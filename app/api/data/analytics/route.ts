@@ -3,6 +3,7 @@ import { dbReady, q } from '@/lib/db'
 import { requireAuth, requireClienteId } from '@/lib/auth-utils'
 import { isDemo } from '@/lib/demo'
 import { apiError } from '@/lib/api-error'
+import { metaConfigured } from '@/lib/meta-insights'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,7 @@ const num = (v: unknown) => Number(v || 0)
 function demoAnalytics() {
   return {
     demo: true,
+    meta: { configured: false, igConnected: 0 },
     kpi: { totale: 6, daApprovare: 3, approvati: 1, pubblicati: 2, errori: 0, tassoApprovazione: 50, tassoErrore: 0 },
     timeline: [
       { giorno: '2026-06-24', creati: 1 }, { giorno: '2026-06-25', creati: 2 },
@@ -94,8 +96,16 @@ export async function GET() {
       performance = { hasData: false, totali: null, topPost: [] }
     }
 
+    // Stato connessione Instagram (per il pannello sync automatico).
+    let igConnected = 0
+    try {
+      const r = await q(`SELECT count(*)::int AS n FROM social_accounts WHERE cliente_id = $1 AND platform = 'instagram' AND attivo = true`, [cid]) as Row[]
+      igConnected = num(r[0]?.n)
+    } catch { igConnected = 0 }
+
     return NextResponse.json({
       demo: false,
+      meta: { configured: metaConfigured(), igConnected },
       kpi: { totale, daApprovare, approvati, pubblicati, errori, tassoApprovazione, tassoErrore },
       timeline: timelineRows.map(r => ({ giorno: r.giorno, creati: num(r.creati) })),
       perCanale: tally(contenuti, 'canale'),
