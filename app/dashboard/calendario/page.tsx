@@ -535,10 +535,11 @@ function CalendarioInner() {
                   <button
                     onClick={() => setDeleteTarget(c)}
                     disabled={saving === c.id}
-                    className="py-1.5 px-2 md:px-3 justify-center rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors"
-                    title="Cancella contenuto admin"
+                    className="py-1.5 px-2 md:px-3 justify-center inline-flex items-center gap-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors"
+                    title="Elimina definitivamente il contenuto"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Elimina</span>
                   </button>
                 </div>
               </div>
