@@ -2,7 +2,7 @@
 
 > Documento per AI agent multipli (Claude CLI, Cursor/Cline, Codex). Lavoriamo come un team unificato.
 
-**Data ultimo aggiornamento**: 2026-06-28 (sessione: AI provider reliability + vision + landing/SEO + generazione professionale)
+**Data ultimo aggiornamento**: 2026-06-29 (sessione: generazione PRO + Analytics + Insights Instagram automatiche)
 **Progetto**: Social Automation — SaaS social media management per agenzie
 **Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Anthropic/OpenRouter/Gemini/OpenCode)
 **Percorso locale**: `/Users/md/Documents/social_automation_v2`
@@ -57,6 +57,34 @@ Tutto su `main`, tree pulito, `tsc`+`eslint` verdi.
 **TODO agenti v2** (riscrivere sullo stack reale): 4 agenti (weekly-seo, weekly-competitor, weekly-client-report, daily-ads-optimizer) usando `lib/db.ts` `q()` (NON Supabase), schema reale (`attivo`, non `is_active`), `callAI` da `lib/ai.ts`, + entry point: API route `/api/agents/<nome>` protette da secret + scheduler (cron Render `type: cron` o cron-job.org).
 
 **Pending noti**: zero test automatici; `score-content` (calendario) ha feedback locale ma non è nel GenerationBar globale; `BLOTATO_API_KEY` mancante sul deploy (autopublish off).
+
+---
+
+## 🆕 Sessione 2026-06-29 (Claude Code) — generazione PRO + Analytics + Insights IG automatiche
+
+### Generazione professionale (bibbia condivisa)
+- `lib/prompt-standards.ts`: standard unici importati da content/plan/blog/ads — `PRO_COPY_STANDARDS` (anti-cliché+grammatica), `SEO_GEO_STANDARDS`, `DIVERSITY_STANDARDS`+`FUNNEL_STANDARDS` (per i batch/piano), `COPY_ANGLES`+`pickAngle()`. **Aggiornare gli standard solo qui.** Risolve ripetizione + errori grammatica ("Eleganzasenza"). temperature 0.85.
+- Vision già attiva (sessione precedente); campo "Prodotto/i nell'immagine" + nome per-immagine prefillato dal filename.
+
+### Analytics (gap #1 vs concorrenza)
+- `/dashboard/analytics` + `/api/data/analytics`: KPI produzione, timeline 30gg, pipeline editoriale, distribuzioni canale/formato/qualità/funnel — **dati reali dal DB**, niente finti.
+- `migration 017_post_metrics.sql`: tabella metriche performance.
+- `/api/data/metrics` (POST/GET): **inserimento manuale** metriche reali dalle Insights → popola la sezione Performance.
+
+### Insights Instagram AUTOMATICHE (Meta Graph API)
+- `lib/meta-insights.ts`: OAuth (code→long-lived token), trova account IG Business collegati alle Pagine FB, lista media, legge insights (reach/saved/shares/interazioni).
+- `/api/social/connect` + `/api/social/callback`: flusso OAuth, salva token in `social_accounts` (tenant-safe).
+- `/api/data/metrics/sync`: legge Insights IG → popola `post_metrics` (match via permalink=blotato_post_url, altrimenti `ig:{mediaId}`).
+- Analytics: pannello "Insights Instagram automatiche" (Collega / Sincronizza).
+- `render.yaml`: `META_APP_ID` + `META_APP_SECRET` (sync:false).
+- **⚠️ Blotato NON dà metriche** (verificato tutta l'API: solo status+URL). Meta Graph è l'unico modo reale. **Setup utente una tantum**: app Meta Developer + IG Business/Creator + Pagina FB + redirect URI `/api/social/callback` + 2 env. Per account terzi serve **App Review Meta** (settimane).
+
+### Landing
+- `347fbfd`+`20012d9`: bottone "Vedi landing" in sidebar + hero dashboard.
+- `468f1b9`: lead generation come servizio dedicato sulla landing (card + hero).
+
+### Stato AI provider (riepilogo operativo)
+Free OpenRouter = 429 cronico; OpenCode = a pagamento; Gemini free = 15 req/min. **Affidabile = modello OpenRouter PAID** (senza `:free`, con credito) o Gemini key valida (`AIza...`). Per VISION serve modello vision (Gemini 2.5 Flash, GPT-4o mini). Tutti i fix provider della sessione precedente restano validi.
 
 ---
 
