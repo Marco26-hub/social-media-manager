@@ -73,6 +73,8 @@ ${assets.map((asset, index) => `${index + 1}. ${asset.name || 'asset'} — ${ass
 - GUARDA le immagini e scrivi il contenuto SUL PRODOTTO EFFETTIVAMENTE MOSTRATO (es. il capo, il colore, il materiale, lo stile, l'ambientazione che VEDI).
 - NON scrivere su altri prodotti del catalogo (es. un blazer) se NON sono quelli nell'immagine. L'immagine vince sempre sui dati del catalogo.
 - Descrivi dettagli concreti che osservi: tipo di capo, colore, vestibilità, accessori, contesto/luogo.
+- Usa il NOME indicato accanto a ogni immagine come nome ufficiale del prodotto (l'immagine dice com'è, il nome dice come si chiama).
+- PIÙ PRODOTTI: se ci sono più immagini con prodotti/nomi diversi, in carosello/album dedica UNA slide a ciascun prodotto (nome corretto + descrizione dall'immagine corrispondente). In post singolo, scegli il prodotto principale o raccontali come look coordinato.
 
 Regole asset:
 - Il contenuto deve indicare quale asset usare in ogni post/slide/frame/scena.
