@@ -102,8 +102,40 @@ async function insertCalendario(columns: string[], values: unknown[], retryColum
   }
 }
 
-function build(p: PromptSpec, brand: string, prodotto: string, canale: string, formato: string, tema: string, nomeProdotto: string, qualityContext: string, assetContext: string) {
+// Standard professionali applicati a OGNI generazione: alzano la qualità da
+// "didascalia AI generica" a copy da professionista. Vietano i cliché ricorrenti.
+const PROFESSIONAL_STANDARDS = `STANDARD PROFESSIONALI (vincolanti):
+- Scrivi come un copywriter senior, NON come un'AI. Ogni parola si guadagna il posto.
+- HOOK che ferma lo scroll: concreto, specifico, con tensione o sorpresa. Mai generico o decorativo.
+- SPECIFICITÀ: usa dettagli reali (materiale, taglio, vestibilità, occasione, sensazione). Vietati aggettivi vuoti ("bellissimo", "unico", "speciale").
+- VIETATE queste frasi-cliché (e qualsiasi loro variante): "eleganza senza sforzo", "lusso discreto", "il tuo nuovo alleato di stile", "non può mancare nel tuo armadio", "stile senza compromessi", "scopri il/la nostro/a", "un must-have", "perfetto per ogni occasione", "leggerezza e classe", "comfort e stile", "eleganza leggera", "senza sforzo". Se stai per scriverle, RISCRIVI da capo.
+- VARIETÀ: questo contenuto deve essere DIVERSO da un post generico — attacco, ritmo e struttura non scontati. Una sola idea forte, sviluppata bene.
+- Mostra, non dire. Concretezza > genericità. Italiano naturale, ritmo umano, zero corporate-speak.`
+
+// Angoli creativi ruotati a ogni generazione: forzano approcci diversi così i
+// post consecutivi non si somigliano (il problema della ripetizione AI).
+const COPY_ANGLES = [
+  "PROBLEMA→SOLUZIONE: apri con un problema reale e specifico del target, poi posiziona il prodotto come risposta.",
+  "OCCASIONE D'USO: àncora il contenuto a un momento concreto (riunione del lunedì, aperitivo, viaggio in valigia piccola) e mostra come il prodotto lo migliora.",
+  "SENSORIALE: parti dalla sensazione fisica (come cade il tessuto, la mano del materiale, la temperatura addosso) — fai 'sentire' il prodotto.",
+  "CONTRARIAN: sfida una convinzione diffusa nel settore, poi posiziona il prodotto come l'alternativa intelligente.",
+  "MICRO-STORIA / POV: una scena breve e reale (un momento, una persona) in cui il prodotto è protagonista naturale, non pubblicità.",
+  "BENEFICIO SINGOLO DIMOSTRATO: scegli UN beneficio concreto e dimostralo con un dettaglio verificabile, non con aggettivi.",
+  "DOMANDA DIRETTA: apri con una domanda precisa che il target si pone davvero, poi rispondi col prodotto.",
+  "DETTAGLIO ARTIGIANALE: racconta una scelta di design/materiale che il cliente non noterebbe da solo, e perché conta.",
+]
+
+function pickAngle(): string {
+  return COPY_ANGLES[Math.floor(Math.random() * COPY_ANGLES.length)]
+}
+
+function build(p: PromptSpec, brand: string, prodotto: string, canale: string, formato: string, tema: string, nomeProdotto: string, qualityContext: string, assetContext: string, angle: string) {
   return `${p.persona}
+
+${PROFESSIONAL_STANDARDS}
+
+ANGOLO CREATIVO OBBLIGATORIO PER QUESTO CONTENUTO (usalo come attacco/struttura):
+→ ${angle}
 
 BRAND:
 ${brand}
@@ -396,7 +428,7 @@ CTA base: ${brand.cta_base || ''}
 function buildSystemPrompt(brand: Record<string, unknown> | null, quality: string): string {
   const settore = (brand as Record<string, string>)?.settore || 'moda ed e-commerce'
   const nome = (brand as Record<string, string>)?.brand_name || 'brand'
-  return `Sei un creative strategist e copywriter social media senior specializzato in ${settore} per il brand ${nome}. Livello qualità richiesto: ${quality}. Rispondi sempre SOLO con JSON valido, nessun altro testo, nessuna spiegazione. Usa il tono di voce, le parole chiave e lo stile indicati nel contesto brand. Non inventare claim, prezzi, stock o dati non forniti.`
+  return `Sei un creative strategist e copywriter social media senior (10+ anni, brand premium) specializzato in ${settore} per il brand ${nome}. Livello qualità: ${quality}. Il tuo copy deve sembrare scritto da un professionista, non da un'AI: hook che fermano lo scroll, specificità concreta, zero cliché e zero frasi-riempitivo. Evita le formule generiche da didascalia automatica. Rispondi SEMPRE e SOLO con JSON valido, nessun altro testo. Usa tono di voce, parole-chiave e stile del contesto brand. Non inventare claim, prezzi, stock o dati non forniti.`
 }
 
 export async function POST(request: Request) {
@@ -453,6 +485,7 @@ export async function POST(request: Request) {
       nome_prodotto || (product as Record<string, unknown>)?.nome_prodotto as string || '',
       qualityContext,
       assetContext,
+      pickAngle(),
     )
 
     // Prepend brand context for richer generation
