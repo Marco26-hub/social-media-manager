@@ -48,7 +48,16 @@ async function readError(res: Response, fallback: string): Promise<string> {
   } catch {
     try {
       const text = await res.text()
-      if (text.trim()) return text.trim().slice(0, 300)
+      const trimmed = text.trim()
+      // Risposta NON-JSON = quasi sempre pagina d'errore del gateway (502/504/503
+      // di Render quando la generazione è troppo lunga). Mai rovesciare l'HTML grezzo.
+      if (/^\s*<|<!doctype|<html/i.test(trimmed)) {
+        if (res.status === 502 || res.status === 504) {
+          return 'La generazione ha impiegato troppo tempo e il server l\'ha interrotta (timeout). Riprova, o usa un modello più veloce/affidabile (es. Gemini con credito, o OpenRouter a pagamento).'
+        }
+        return `Errore server (${res.status || 'rete'}). Riprova tra poco.`
+      }
+      if (trimmed) return trimmed.slice(0, 300)
     } catch {
       /* keep fallback */
     }

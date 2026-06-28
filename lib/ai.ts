@@ -18,7 +18,8 @@ const FALLBACK_MODELS = [
 ]
 
 // Quanti fallback OpenRouter provare al massimo prima di arrendersi.
-// Con timeout 45s/tentativo, 2 fallback + tentativo primario stanno sotto i 90s del client.
+// Con timeout 30s/tentativo i 429 sono istantanei; solo le generazioni lente
+// consumano tempo. Cap basso per restare sotto il timeout gateway (evita 502).
 const MAX_OPENROUTER_FALLBACKS = 2
 
 type AIAttempt = {
@@ -217,7 +218,7 @@ export async function callAI(params: {
     // secondi. Attende il retryDelay (cap 18s, sotto il timeout client) e ritenta UNA volta.
     const lastGem = attempts.filter(a => a.provider === 'gemini').pop()
     if (lastGem && isRateLimit(lastGem.error)) {
-      const waitMs = Math.min(rateLimitWaitMs([lastGem]), 18000)
+      const waitMs = Math.min(rateLimitWaitMs([lastGem]), 8000)
       if (waitMs > 0) {
         console.warn('[AI bridge]', `Gemini rate-limited, attendo ${Math.round(waitMs / 1000)}s e ritento`)
         await sleep(waitMs)
@@ -324,7 +325,7 @@ async function callOpenRouter(
   userPrompt: string,
   key: string,
   maxTokens: number,
-  timeout = 45000,
+  timeout = 30000,
 ): Promise<string> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeout)
@@ -358,7 +359,7 @@ async function callAnthropic(
   userPrompt: string,
   key: string,
   maxTokens: number,
-  timeout = 45000,
+  timeout = 30000,
 ): Promise<string> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeout)
@@ -401,7 +402,7 @@ async function callGemini(
   userPrompt: string,
   key: string,
   maxTokens: number,
-  timeout = 60000,
+  timeout = 30000,
 ): Promise<string> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeout)
@@ -449,7 +450,7 @@ async function callOpenCode(
   userPrompt: string,
   key: string,
   maxTokens: number,
-  timeout = 45000,
+  timeout = 30000,
 ): Promise<string> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeout)

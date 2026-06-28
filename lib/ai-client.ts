@@ -26,13 +26,21 @@ export function readAISettings() {
 
 export async function readApiError(response: Response, fallback: string) {
   try {
-    const data = await response.json()
+    const data = await response.clone().json()
     if (typeof data?.error === 'string' && data.error.trim()) return data.error
     if (typeof data?.message === 'string' && data.message.trim()) return data.message
   } catch {
     try {
       const text = await response.text()
-      if (text.trim()) return text.trim().slice(0, 500)
+      const trimmed = text.trim()
+      // Non rovesciare l'HTML di una pagina d'errore gateway (502/504).
+      if (/^\s*<|<!doctype|<html/i.test(trimmed)) {
+        if (response.status === 502 || response.status === 504) {
+          return 'Operazione troppo lunga, interrotta dal server (timeout). Riprova.'
+        }
+        return `Errore server (${response.status || 'rete'}). Riprova tra poco.`
+      }
+      if (trimmed) return trimmed.slice(0, 500)
     } catch {
       // keep fallback
     }
