@@ -122,6 +122,10 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
     setAssets(prev => prev.filter((_, i) => i !== index))
   }
 
+  function renameAsset(index: number, nome: string) {
+    setAssets(prev => prev.map((a, i) => (i === index ? { ...a, name: nome } : a)))
+  }
+
   async function genera(f: FormatoConfig) {
     setPending(null)
     setErrors(prev => {
@@ -286,25 +290,34 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
         </div>
 
         {assets.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 mt-4">
-            {assets.map((asset, index) => (
-              <div key={`${asset.url}-${index}`} className="relative rounded-xl overflow-hidden border border-gray-200 bg-white group">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={asset.previewUrl || asset.url} alt={asset.name} className="w-full aspect-square object-cover" />
-                <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[10px] px-2 py-1 truncate">
-                  {asset.source === 'upload' ? 'Upload' : 'URL'} · {asset.name}
+          <>
+            <p className="text-[11px] text-gray-500 mt-4 mb-1.5">Dai un nome a ogni immagine col prodotto che contiene — l&apos;AI lo userà nel copy.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+              {assets.map((asset, index) => (
+                <div key={`${asset.url}-${index}`} className="rounded-xl overflow-hidden border border-gray-200 bg-white">
+                  <div className="relative group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={asset.previewUrl || asset.url} alt={asset.name} className="w-full aspect-square object-cover" />
+                    <span className="absolute top-1 left-1 bg-black/55 text-white text-[9px] px-1.5 py-0.5 rounded-full">{asset.source === 'upload' ? 'Upload' : 'URL'}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAsset(index)}
+                      className="absolute top-1 right-1 w-7 h-7 rounded-full bg-white/90 text-red-600 flex items-center justify-center opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Rimuovi immagine"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <input
+                    value={asset.name || ''}
+                    onChange={e => renameAsset(index, e.target.value)}
+                    placeholder="Nome prodotto…"
+                    className="w-full text-[11px] px-2 py-1.5 border-t border-gray-100 focus:outline-none focus:bg-brand-50/40"
+                  />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => removeAsset(index)}
-                  className="absolute top-1 right-1 w-7 h-7 rounded-full bg-white/90 text-red-600 flex items-center justify-center opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label="Rimuovi immagine"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
