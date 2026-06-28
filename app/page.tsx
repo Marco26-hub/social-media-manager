@@ -17,6 +17,8 @@ import {
   Briefcase,
   Store,
   Rocket,
+  Magnet,
+  Eye,
 } from 'lucide-react'
 
 // Capacità reali del prodotto (niente metriche inventate)
@@ -25,8 +27,9 @@ const CAPACITA = [
   { icon: FileText, titolo: 'Piano editoriale', desc: 'Calendari settimanali e mensili coerenti con il tuo brand, i tuoi prodotti e i tuoi temi.' },
   { icon: Search, titolo: 'Audit SEO + GEO', desc: 'Analisi per posizionarti sui motori di ricerca e farti citare dagli assistenti AI come ChatGPT e Perplexity.' },
   { icon: Megaphone, titolo: 'Campagne ADS', desc: 'Struttura e ottimizzazione delle campagne pubblicitarie. Il budget pubblicitario resta separato dal canone.' },
-  { icon: Target, titolo: 'Analisi competitor e lead', desc: 'Monitoraggio dei concorrenti e raccolta di contatti potenziali per alimentare la tua pipeline commerciale.' },
-  { icon: BarChart3, titolo: 'Report e storico', desc: 'Rendicontazione delle attività, dello stato delle pubblicazioni e degli errori, con storico consultabile.' },
+  { icon: Magnet, titolo: 'Lead generation', desc: 'Trova e qualifica contatti potenziali per settore e zona, con scoring caldo/tiepido/freddo e gestione del follow-up commerciale.' },
+  { icon: Eye, titolo: 'Analisi competitor', desc: 'Monitoraggio dei concorrenti: contenuti, posizionamento e spunti per differenziarti.' },
+  { icon: BarChart3, titolo: 'Analytics e report', desc: 'Produzione, pipeline editoriale e performance dei contenuti, con storico consultabile.' },
 ]
 
 // Per chi è (target onesto, niente prova sociale finta)
@@ -150,8 +153,8 @@ export default function LandingPage() {
           </h1>
           <p className="text-lg text-gray-600 mb-10 max-w-2xl mx-auto leading-relaxed">
             Social Automation è il servizio gestito che crea contenuti, piano editoriale, audit SEO e GEO,
-            campagne ADS e report per agenzie e PMI italiane. L&apos;AI prepara, tu approvi con un click prima
-            di pubblicare.
+            campagne ADS, lead generation e report per agenzie e PMI italiane. L&apos;AI prepara, tu approvi
+            con un click prima di pubblicare.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link href="/dashboard" className="btn-primary text-base px-6 py-3 w-full sm:w-auto justify-center">
