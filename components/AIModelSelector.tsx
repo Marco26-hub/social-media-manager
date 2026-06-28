@@ -56,6 +56,8 @@ const MODELS: Model[] = [
   // OpenRouter A PAGAMENTO (richiede credito sull'account): NIENTE code/429,
   // capacità dedicata. Costo irrisorio (~0,001€/post). Servono con la key OpenRouter.
   { id: 'meta-llama/llama-3.3-70b-instruct',  name: 'Llama 3.3 70B (paid)', provider: 'openrouter', tier: 'paid', context: '131K', speed: 'fast',   quality: 'high', badge: '★ Affidabile · ~0,001€', recommendedFor: ['contenuti-social', 'piano-editoriale', 'seo-audit', 'blog-articolo'] },
+  { id: 'google/gemini-2.5-flash-lite',       name: 'Gemini 2.5 Flash Lite', provider: 'openrouter', tier: 'paid', context: '1M', speed: 'fast', quality: 'high', badge: 'Google · economico' },
+  { id: 'google/gemini-2.5-flash',            name: 'Gemini 2.5 Flash',      provider: 'openrouter', tier: 'paid', context: '1M', speed: 'fast', quality: 'top',  badge: 'Google' },
   { id: 'openai/gpt-4o-mini',                 name: 'GPT-4o mini',          provider: 'openrouter', tier: 'paid', context: '128K', speed: 'fast',   quality: 'high', badge: 'OpenAI · affidabile' },
   { id: 'deepseek/deepseek-chat',             name: 'DeepSeek Chat',        provider: 'openrouter', tier: 'paid', context: '131K', speed: 'medium', quality: 'top',  badge: 'Economico' },
 
