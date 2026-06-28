@@ -1,8 +1,85 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { BarChart3, Loader2, AlertTriangle, CheckCircle, Send, FileEdit, TrendingUp, Eye } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { BarChart3, Loader2, AlertTriangle, CheckCircle, Send, FileEdit, TrendingUp, Eye, Plus } from 'lucide-react'
 import { readApiError } from '@/lib/ai-client'
+
+type PubPost = {
+  id_contenuto: string; canale: string; formato?: string; hook?: string
+  impressions?: number; reach?: number; likes?: number; comments?: number; shares?: number; saves?: number; clicks?: number; engagement_rate?: number
+}
+
+function MetricsEntry({ onSaved }: { onSaved: () => void }) {
+  const [posts, setPosts] = useState<PubPost[]>([])
+  const [sel, setSel] = useState('')
+  const [f, setF] = useState({ reach: '', impressions: '', likes: '', comments: '', shares: '', clicks: '' })
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const loadPosts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/data/metrics')
+      if (res.ok) setPosts(await res.json() as PubPost[])
+    } catch { /* ignore */ }
+  }, [])
+  useEffect(() => { loadPosts() }, [loadPosts])
+
+  const selected = posts.find(p => `${p.id_contenuto}|${p.canale}` === sel)
+
+  async function save() {
+    if (!selected) { setMsg('Seleziona un post'); return }
+    setSaving(true); setMsg(null)
+    try {
+      const res = await fetch('/api/data/metrics', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_contenuto: selected.id_contenuto, canale: selected.canale, ...f }),
+      })
+      if (!res.ok) throw new Error(await readApiError(res, 'Salvataggio metriche fallito'))
+      setMsg('✅ Metriche salvate')
+      setF({ reach: '', impressions: '', likes: '', comments: '', shares: '', clicks: '' })
+      await loadPosts(); onSaved()
+    } catch (e) { setMsg(`❌ ${(e as Error).message}`) }
+    setSaving(false)
+  }
+
+  return (
+    <div className="card p-5 mt-6">
+      <div className="flex items-center gap-2 mb-1">
+        <Plus className="w-5 h-5 text-brand-600" />
+        <h2 className="font-bold text-gray-900">Inserisci metriche reali</h2>
+      </div>
+      <p className="text-xs text-gray-500 mb-4">Copia i numeri dalle Insights native (Instagram/Facebook) per il post pubblicato. Sono dati reali, niente stime.</p>
+      {posts.length === 0 ? (
+        <p className="text-sm text-gray-400">Nessun post pubblicato ancora. Le metriche si inseriscono sui post in stato PUBBLICATO.</p>
+      ) : (
+        <div className="space-y-3">
+          <select value={sel} onChange={e => setSel(e.target.value)} className="input text-sm">
+            <option value="">Scegli un post pubblicato…</option>
+            {posts.map(p => (
+              <option key={`${p.id_contenuto}|${p.canale}`} value={`${p.id_contenuto}|${p.canale}`}>
+                {p.canale} · {p.id_contenuto} {p.hook ? `· ${p.hook.slice(0, 40)}` : ''} {p.engagement_rate ? `(${p.engagement_rate}% eng)` : ''}
+              </option>
+            ))}
+          </select>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {([['reach', 'Reach'], ['impressions', 'Impression'], ['likes', 'Like'], ['comments', 'Commenti'], ['shares', 'Condivisioni'], ['clicks', 'Click']] as const).map(([key, label]) => (
+              <div key={key}>
+                <label className="text-[11px] text-gray-500">{label}</label>
+                <input type="number" min={0} value={f[key]} onChange={e => setF(s => ({ ...s, [key]: e.target.value }))} className="input text-sm" placeholder="0" />
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={save} disabled={saving || !sel} className="btn-primary text-sm disabled:opacity-50">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} Salva metriche
+            </button>
+            {msg && <span className="text-xs text-gray-600">{msg}</span>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 type Analytics = {
   demo: boolean
@@ -48,16 +125,15 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch('/api/data/analytics')
-        if (!res.ok) throw new Error(await readApiError(res, 'Impossibile caricare le analytics'))
-        setData(await res.json() as Analytics)
-      } catch (e) { setError((e as Error).message) }
-      setLoading(false)
-    })()
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/data/analytics')
+      if (!res.ok) throw new Error(await readApiError(res, 'Impossibile caricare le analytics'))
+      setData(await res.json() as Analytics)
+    } catch (e) { setError((e as Error).message) }
+    setLoading(false)
   }, [])
+  useEffect(() => { load() }, [load])
 
   if (loading) return <div className="p-8 flex justify-center py-20"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>
   if (error) return (
@@ -179,10 +255,12 @@ export default function AnalyticsPage() {
         ) : (
           <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-600">
             <p className="font-medium text-gray-800">Nessun dato di performance ancora.</p>
-            <p className="mt-1 text-xs">Le metriche reali (reach, like, engagement) arrivano quando i post sono pubblicati e sincronizzati. Prossimo passo: collegare il sync da Blotato/piattaforma (o inserimento manuale). <span className="font-medium">Non mostriamo numeri finti.</span></p>
+            <p className="mt-1 text-xs">Inserisci le metriche reali qui sotto (dalle Insights della piattaforma). <span className="font-medium">Non mostriamo numeri finti.</span></p>
           </div>
         )}
       </div>
+
+      <MetricsEntry onSaved={load} />
     </div>
   )
 }
