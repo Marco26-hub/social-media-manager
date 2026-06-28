@@ -46,12 +46,12 @@ const MODELS: Model[] = [
   { id: 'nvidia/nemotron-3.5-content-safety:free',  name: 'NVIDIA Nemotron 3.5 Safety',    provider: 'openrouter', tier: 'free', context: '131K', speed: 'fast',   quality: 'high', badge: 'Content Safety', recommendedFor: ['contenuti-social'] },
   { id: 'openrouter/free',                          name: 'OpenRouter Free Router',        provider: 'openrouter', tier: 'free', context: '200K', speed: 'fast',   quality: 'high', badge: 'Auto' },
   { id: 'openai/gpt-oss-120b:free',                 name: 'OpenAI gpt-oss-120b',           provider: 'openrouter', tier: 'free', context: '131K', speed: 'medium', quality: 'high' },
-  { id: 'z-ai/glm-4.5-air:free',                    name: 'Z.ai GLM 4.5 Air',              provider: 'openrouter', tier: 'free', context: '131K', speed: 'fast',   quality: 'high' },
+  { id: 'openai/gpt-oss-20b:free',                  name: 'OpenAI gpt-oss-20b',            provider: 'openrouter', tier: 'free', context: '131K', speed: 'fast',   quality: 'medium' },
   { id: 'google/gemma-4-31b-it:free',               name: 'Google Gemma 4 31B',            provider: 'openrouter', tier: 'free', context: '262K', speed: 'fast',   quality: 'high' },
+  { id: 'google/gemma-4-26b-a4b-it:free',           name: 'Google Gemma 4 26B',            provider: 'openrouter', tier: 'free', context: '262K', speed: 'fast',   quality: 'high' },
   { id: 'qwen/qwen3-next-80b-a3b-instruct:free',    name: 'Qwen3 Next 80B',                provider: 'openrouter', tier: 'free', context: '262K', speed: 'medium', quality: 'high' },
   { id: 'meta-llama/llama-3.3-70b-instruct:free',   name: 'Llama 3.3 70B',                 provider: 'openrouter', tier: 'free', context: '128K', speed: 'fast',   quality: 'high', badge: 'Consigliato',    recommendedFor: ['piano-editoriale', 'seo-audit', 'blog-articolo', 'contenuti-social'] },
-  { id: 'qwen/qwen-2.5-72b-instruct:free',          name: 'Qwen 2.5 72B',                  provider: 'openrouter', tier: 'free', context: '32K',  speed: 'medium', quality: 'high' },
-  { id: 'mistralai/mistral-nemo:free',              name: 'Mistral Nemo',                  provider: 'openrouter', tier: 'free', context: '128K', speed: 'fast',   quality: 'medium' },
+  { id: 'nousresearch/hermes-3-llama-3.1-405b:free', name: 'Hermes 3 405B',                provider: 'openrouter', tier: 'free', context: '131K', speed: 'medium', quality: 'top',  badge: '405B' },
 
   // Google Gemini (free tier, key gratuita su aistudio.google.com)
   { id: 'gemini-2.0-flash',       name: 'Gemini 2.0 Flash',      provider: 'gemini', tier: 'free', context: '1M',   speed: 'fast',   quality: 'high', badge: 'Google · Free', recommendedFor: ['contenuti-social', 'piano-editoriale', 'seo-audit', 'blog-articolo'] },
