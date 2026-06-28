@@ -373,20 +373,30 @@ async function callAnthropic(
   }
 }
 
+const GEMINI_SAFETY = [
+  'HARM_CATEGORY_HARASSMENT',
+  'HARM_CATEGORY_HATE_SPEECH',
+  'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+  'HARM_CATEGORY_DANGEROUS_CONTENT',
+].map((category) => ({ category, threshold: 'BLOCK_NONE' }))
+
 async function callGemini(
   model: string,
   systemPrompt: string | undefined,
   userPrompt: string,
   key: string,
   maxTokens: number,
-  timeout = 45000,
+  timeout = 60000,
 ): Promise<string> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeout)
 
   const body: Record<string, unknown> = {
     contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-    generationConfig: { maxOutputTokens: maxTokens },
+    // maxOutputTokens generoso: con schema JSON ricchi 4000 può troncare (MAX_TOKENS → vuoto).
+    generationConfig: { maxOutputTokens: Math.min(Math.max(maxTokens, 2048), 8192), temperature: 0.8 },
+    // Marketing/moda può far scattare filtri safety troppo aggressivi → blocco silenzioso.
+    safetySettings: GEMINI_SAFETY,
   }
   if (systemPrompt) body.systemInstruction = { parts: [{ text: systemPrompt }] }
 
@@ -400,8 +410,18 @@ async function callGemini(
     })
     if (!res.ok) throw new Error(formatHttpError(res.status, await res.text().catch(() => '')))
     const data = await res.json()
-    const parts = data.candidates?.[0]?.content?.parts
-    return Array.isArray(parts) ? parts.map((p: { text?: string }) => p.text || '').join('') : ''
+    const candidate = data.candidates?.[0]
+    const parts = candidate?.content?.parts
+    const text = Array.isArray(parts) ? parts.map((p: { text?: string }) => p.text || '').join('') : ''
+    if (!text.trim()) {
+      // Diagnostica chiara invece di "risposta vuota" generico.
+      const block = data.promptFeedback?.blockReason
+      const finish = candidate?.finishReason
+      if (block) throw new Error(`Gemini ha bloccato il prompt (${block})`)
+      if (finish && finish !== 'STOP') throw new Error(`Gemini interrotto: ${finish}`)
+      throw new Error('Gemini ha restituito una risposta vuota')
+    }
+    return text
   } finally {
     clearTimeout(timer)
   }
