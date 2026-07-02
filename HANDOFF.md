@@ -2,7 +2,7 @@
 
 > Documento per AI agent multipli (Claude CLI, Cursor/Cline, Codex). Lavoriamo come un team unificato.
 
-**Data ultimo aggiornamento**: 2026-06-29 (sessione: generazione PRO + Analytics + Insights Instagram automatiche)
+**Data ultimo aggiornamento**: 2026-07-02 (sessione: visual AI Blotato + AI selector fix + storage dual-mode verificato)
 **Progetto**: Social Automation — SaaS social media management per agenzie
 **Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Anthropic/OpenRouter/Gemini/OpenCode)
 **Percorso locale**: `/Users/md/Documents/social_automation_v2`
@@ -651,5 +651,26 @@ Chiude il gap vs Predis/Ocoya: l'AI scrive il testo **e** genera la grafica.
 - **`/api/generate/visual/status`** (GET `?id_contenuto=`): polling; a `done` salva URL e riempie gli **slot `link_media_*` liberi** (no overwrite delle foto utente) → pronto per pubblicazione Blotato.
 - **UI** `/dashboard/calendario`: card "Grafica AI" nel dettaglio — genera/rigenera, preview immagini/video, polling auto ogni 15s (max 5 min).
 - **Env**: richiede `BLOTATO_API_KEY` (già in render.yaml). `BLOTATO_BACKEND_URL` opzionale.
+
+---
+
+## Prossima sessione pianificata: Reel + Caroselli SILKinCOM con Claude Design
+
+**Goal**: creare visual reali (reel 9:16 + caroselli 4:5) per SILKinCOM usando Claude Design (artifact HTML/SVG animati) come alternativa a Blotato per chi non ha BLOTATO_API_KEY o vuole controllo totale.
+
+**Brand SILKinCOM**:
+- Settore: Fashion e-commerce, luxury accessibile
+- Target: donna 25-45 professionista
+- Tono: moderno, elegante, accessibile
+- Colori: non definiti (da stabilire in sessione — proposta: bianco/nero/oro/sabbia)
+- Prodotti seed: Blazer lino (€129), Jeans dritti (€89), T-shirt cotone bio (€39 promo)
+- CTA base: "Scopri il look completo su silkincom.com"
+- Hashtag: #silkincom #modaaccessibile
+
+**Approccio tecnico**:
+- Claude Design → artifact HTML/CSS animato → export come immagine/video
+- Route `/api/generate/visual-design` → AI genera codice del visual (HTML+CSS+font) → salvato come `visual_html` in calendario
+- Preview nel browser con iframe → bottone screenshot/export
+- Formati: reel (9:16, 1080x1920), carosello (4:5, 1080x1350), post quadrato (1:1)
 
 *Fine handoff. Non reintrodurre Supabase o n8n. Mantieni la demo mode funzionante.*
