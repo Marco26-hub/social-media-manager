@@ -91,13 +91,25 @@ export default function PianoPage() {
 
     const aiSettings = readAISettings()
     // La generazione gira nel provider globale: continua anche se cambi pagina.
-    const result = await gen.run<{ count?: number; images_provided?: number; images_recycled?: boolean }>({
+    // Mensile ora è 4 blocchi settimanali in parallelo (non più 1 chiamata gigante):
+    // wall-clock simile al settimanale nel caso comune, ma teniamo margine extra
+    // per il caso in cui i 4 blocchi vadano in rate-limit insieme sullo stesso
+    // provider free e debbano ritentare in coda.
+    const result = await gen.run<{
+      count?: number
+      images_provided?: number
+      images_recycled?: boolean
+      chunks_total?: number
+      chunks_failed?: number
+      items_scartati?: number
+    }>({
       key: 'piano',
       label: `Piano editoriale ${periodo}`,
       url: '/api/generate/plan',
       body: { cliente_id: clienteId, piattaforme, obiettivo, periodo, quality, media_urls: planAssets.map(a => a.url), ...aiSettings },
       href: '/dashboard/calendario',
       estMs: periodo === 'mensile' ? 50000 : 25000,
+      timeoutMs: periodo === 'mensile' ? 130000 : 95000,
     })
 
     if (result.ok) {
@@ -107,7 +119,13 @@ export default function PianoPage() {
         : data.images_recycled
           ? ` ${data.images_provided} foto caricate sono state riusate a ciclo (ne servivano di più).`
           : ` ${data.images_provided} foto distribuite sui contenuti.`
-      setMsg({ type: 'ok', text: `Piano generato. I contenuti sono nel calendario.${imgNote}` })
+      const chunkNote = data?.chunks_failed
+        ? ` ⚠️ ${data.chunks_failed} di ${data.chunks_total} blocchi settimanali non ha generato contenuti (riprova per coprire quei giorni).`
+        : ''
+      const scartatiNote = data?.items_scartati
+        ? ` ${data.items_scartati} contenuti generati sono stati scartati per dati non validi.`
+        : ''
+      setMsg({ type: 'ok', text: `Piano generato (${data?.count ?? '?'} contenuti). I contenuti sono nel calendario.${imgNote}${chunkNote}${scartatiNote}` })
     } else {
       setMsg({ type: 'err', text: result.error || 'Generazione piano fallita' })
     }

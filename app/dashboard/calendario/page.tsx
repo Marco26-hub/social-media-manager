@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import StatusBadge from '@/components/StatusBadge'
 import type { Contenuto, Status } from '@/lib/types'
-import { CheckCircle, XCircle, RefreshCw, Eye, ChevronDown, Filter, Sparkles, Share2, Download, Trash2, AlertTriangle, Wand2, Film } from 'lucide-react'
+import { CheckCircle, XCircle, RefreshCw, Eye, ChevronDown, Filter, Sparkles, Share2, Download, Trash2, AlertTriangle, Wand2, Film, Camera, ImagePlus } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { demoContenuti } from '@/lib/demo-data'
@@ -60,6 +60,7 @@ function CalendarioInner() {
   const [visualState, setVisualState] = useState<Record<string, 'idle' | 'generating' | 'done' | 'error'>>({})
   const [visualMsg, setVisualMsg] = useState<Record<string, string>>({})
   const [brand, setBrand] = useState<{ brand_name?: string | null; social_handle?: string | null } | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState<string | null>(null)
   const demo = useRuntimeDemo()
 
   const clienteId = readClienteId()
@@ -238,6 +239,61 @@ function CalendarioInner() {
     } finally {
       setBackuping(false)
     }
+  }
+
+  // Carica/sostituisce la foto in uno specifico slot (link_media_1..7) del contenuto:
+  // upload su /api/assets/upload (stesso endpoint del piano) + PATCH calendario.
+  // slot 1 = foto principale (thumb riga + preview), 2..7 = slide carosello.
+  async function attachPhoto(c: Contenuto, file: File, slot = 1) {
+    if (!clienteId) return
+    const col = `link_media_${slot}`
+    setUploadingPhoto(`${c.id}:${slot}`)
+    setAdminError(null)
+    try {
+      const form = new FormData()
+      form.append('cliente_id', clienteId)
+      form.append('files', file)
+      const uploadRes = await fetch('/api/assets/upload', { method: 'POST', body: form })
+      if (!uploadRes.ok) throw new Error(await readApiError(uploadRes, 'Caricamento foto fallito'))
+      const uploadData = await uploadRes.json() as { assets?: { url: string }[] }
+      const url = uploadData.assets?.[0]?.url
+      if (!url) throw new Error('Upload riuscito ma nessun URL restituito')
+      await saveMediaSlot(c, col, url)
+    } catch (e) {
+      setAdminError((e as Error).message)
+    } finally {
+      setUploadingPhoto(null)
+    }
+  }
+
+  // Rimuove la foto da uno slot (mette la colonna a null).
+  async function removePhoto(c: Contenuto, slot = 1) {
+    const col = `link_media_${slot}`
+    setUploadingPhoto(`${c.id}:${slot}`)
+    setAdminError(null)
+    try {
+      await saveMediaSlot(c, col, null)
+    } catch (e) {
+      setAdminError((e as Error).message)
+    } finally {
+      setUploadingPhoto(null)
+    }
+  }
+
+  // Persiste un valore (url o null) in una colonna link_media_* e allinea lo stato locale.
+  async function saveMediaSlot(c: Contenuto, col: string, value: string | null) {
+    if (demo) {
+      setDemoData(prev => prev.map(item => item.id === c.id ? { ...item, [col]: value } : item))
+    } else {
+      const patchRes = await fetch('/api/data/calendario', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: c.id, [col]: value }),
+      })
+      if (!patchRes.ok) throw new Error(await readApiError(patchRes, 'Salvataggio foto fallito'))
+    }
+    setContenuti(prev => prev.map(item => item.id === c.id ? { ...item, [col]: value } : item))
+    setSelected(prev => prev && prev.id === c.id ? { ...prev, [col]: value } : prev)
   }
 
   async function deleteContent(c: Contenuto) {
@@ -488,8 +544,13 @@ function CalendarioInner() {
               className={`card p-3 md:p-4 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing ${dragItem === c.id ? 'opacity-50 scale-95' : ''}`}
             >
               <div className="flex items-start gap-3 md:gap-4">
-                {/* Media thumb */}
-                <div className="w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden">
+                {/* Media thumb — click per caricare/sostituire la foto principale */}
+                <label
+                  className="relative w-16 h-16 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden group cursor-pointer"
+                  title="Carica o sostituisci la foto principale"
+                  onClick={e => e.stopPropagation()}
+                  draggable={false}
+                >
                   {c.link_media_1 ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={c.link_media_1} alt="" className="w-full h-full object-cover"
@@ -499,7 +560,20 @@ function CalendarioInner() {
                       {CANALE_ICON[c.canale] ?? '📄'}
                     </div>
                   )}
-                </div>
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/45 transition-colors flex items-center justify-center">
+                    {uploadingPhoto === `${c.id}:1` ? (
+                      <RefreshCw className="w-4 h-4 text-white animate-spin" />
+                    ) : (
+                      <Camera className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                    className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) attachPhoto(c, f, 1); e.target.value = '' }}
+                  />
+                </label>
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
@@ -856,6 +930,87 @@ function CalendarioInner() {
                   )}
                 </div>
               )}
+
+              {/* Immagini del post — ogni slot ha il suo campo carica/sostituisci/rimuovi */}
+              {(() => {
+                const isCarousel = selected.formato === 'carousel'
+                const slotCount = isCarousel ? 7 : 1
+                const mediaVals = [
+                  selected.link_media_1, selected.link_media_2, selected.link_media_3,
+                  selected.link_media_4, selected.link_media_5, selected.link_media_6, selected.link_media_7,
+                ]
+                // Mostra tutti gli slot pieni + il primo slot vuoto (per aggiungerne uno).
+                const lastFilled = mediaVals.reduce((acc, v, i) => (v ? i : acc), -1)
+                const visibleSlots = isCarousel
+                  ? Math.min(slotCount, Math.max(1, lastFilled + 2))
+                  : 1
+                return (
+                  <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-4">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2">
+                        <ImagePlus className="w-4 h-4 text-sky-600" />
+                        <p className="text-sm font-bold text-sky-900">Immagini del post</p>
+                      </div>
+                      <span className="text-[10px] text-sky-600 uppercase font-bold">
+                        {isCarousel ? 'carosello · fino a 7' : '1 immagine'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-sky-700/80 mb-3">
+                      Carica le tue foto dal computer. Ogni immagine ha il suo campo: puoi sostituirla o rimuoverla singolarmente.
+                    </p>
+                    <div className={`grid gap-2 ${isCarousel ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-1 max-w-[200px]'}`}>
+                      {Array.from({ length: visibleSlots }).map((_, i) => {
+                        const slot = i + 1
+                        const url = mediaVals[i]
+                        const busy = uploadingPhoto === `${selected.id}:${slot}`
+                        return (
+                          <div key={slot} className="relative">
+                            <label
+                              className={`relative block ${isCarousel ? 'aspect-square' : 'aspect-[4/5]'} rounded-lg overflow-hidden border-2 ${url ? 'border-sky-200' : 'border-dashed border-sky-300'} bg-white cursor-pointer group`}
+                              title={url ? 'Sostituisci immagine' : 'Carica immagine'}
+                            >
+                              {url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={url} alt={`Slide ${slot}`} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center text-sky-400 gap-1">
+                                  <Camera className="w-5 h-5" />
+                                  <span className="text-[10px] font-medium">Carica</span>
+                                </div>
+                              )}
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                                {busy ? (
+                                  <RefreshCw className="w-4 h-4 text-white animate-spin" />
+                                ) : url ? (
+                                  <Camera className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                ) : null}
+                              </div>
+                              <span className="absolute top-1 left-1 text-[9px] font-bold bg-black/50 text-white rounded px-1">{slot}</span>
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                                className="hidden"
+                                disabled={busy}
+                                onChange={e => { const f = e.target.files?.[0]; if (f) attachPhoto(selected, f, slot); e.target.value = '' }}
+                              />
+                            </label>
+                            {url && !busy && (
+                              <button
+                                type="button"
+                                onClick={() => removePhoto(selected, slot)}
+                                title="Rimuovi immagine"
+                                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white border border-gray-200 shadow flex items-center justify-center text-gray-500 hover:text-red-600 hover:border-red-200"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Grafica AI (Blotato visual) */}
               {(() => {

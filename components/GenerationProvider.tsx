@@ -68,6 +68,13 @@ async function readError(res: Response, fallback: string): Promise<string> {
 export function GenerationProvider({ children }: { children: React.ReactNode }) {
   const [jobs, setJobs] = useState<GenJob[]>([])
   const timers = useRef<Record<string, ReturnType<typeof setInterval>>>({})
+  // Lock sincrono anti-doppio-click: `jobs`/`isRunning` sono state React, quindi il
+  // bottone "disabled={running}" si aggiorna solo al render successivo — tra il
+  // click e quel render, un secondo click (doppio-click reale o tap frenetico su
+  // mobile) può chiamare run() una seconda volta PRIMA che lo stato rifletta il
+  // job già partito, generando due fetch reali (doppio piano, doppio costo). Un
+  // ref è mutabile e sincrono: il check qui sotto è immediato, non aspetta React.
+  const runningKeys = useRef<Set<string>>(new Set())
 
   const clearTimer = useCallback((id: string) => {
     const t = timers.current[id]
@@ -96,6 +103,14 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
 
   const run = useCallback(async function run<T = unknown>(opts: RunOptions) {
     const { key, label, url, body, href, estMs = 30000, timeoutMs = 95000 } = opts
+
+    // Check-and-set sincrono: se una generazione con questa key è già in volo,
+    // rifiuta subito invece di far partire una seconda fetch identica.
+    if (runningKeys.current.has(key)) {
+      return { ok: false, error: 'Generazione già in corso, attendi il completamento.' }
+    }
+    runningKeys.current.add(key)
+
     const id = nextId()
     const startedAt = Date.now()
 
@@ -144,6 +159,8 @@ export function GenerationProvider({ children }: { children: React.ReactNode }) 
         : (e as Error)?.message || 'Errore di rete'
       setJobs(prev => prev.map(j => (j.id === id ? { ...j, status: 'error', progress: 100, message: error } : j)))
       return { ok: false, error }
+    } finally {
+      runningKeys.current.delete(key)
     }
   }, [clearTimer])
 
