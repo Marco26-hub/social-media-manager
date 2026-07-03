@@ -455,9 +455,26 @@ async function callOpenRouter(
       signal: controller.signal,
       body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: 0.85 }),
     })
-    if (!res.ok) throw new Error(formatHttpError(res.status, await res.text().catch(() => '')))
-    const data = await res.json()
-    return data.choices?.[0]?.message?.content || ''
+    if (res.ok) {
+      const data = await res.json()
+      return data.choices?.[0]?.message?.content || ''
+    }
+
+    // Bridge 402 "fewer max_tokens": la key ha credito insufficiente per i
+    // max_tokens richiesti, ma OpenRouter dice quanti può permettersi.
+    // Riprova con quel valore (meno un margine) invece di fallire la cascade.
+    const rawBody = await res.text().catch(() => '')
+    if (res.status === 402 && /fewer max_tokens|can only afford/i.test(rawBody)) {
+      const afforded = Number(rawBody.match(/can only afford (\d+)/i)?.[1] || 0)
+      const reducedTokens = afforded ? Math.max(afforded - 200, 1000) : Math.min(maxTokens, 8000)
+      if (reducedTokens < maxTokens) {
+        clearTimeout(timer)
+        console.warn('[AI bridge]', `402 credito insufficiente per ${maxTokens} token, ritento con ${reducedTokens}`)
+        return callOpenRouter(model, systemPrompt, userPrompt, key, reducedTokens, timeout, images)
+      }
+    }
+
+    throw new Error(formatHttpError(res.status, rawBody))
   } finally {
     clearTimeout(timer)
   }
