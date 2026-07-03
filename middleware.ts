@@ -49,10 +49,12 @@ export async function middleware(request: NextRequest) {
   const isApprove = pathname.startsWith('/approve')
   const isPreview = pathname.startsWith('/preview')
   const isPublicApprovalApi = pathname === '/api/data/approve' && request.method !== 'POST'
+  // Preview pubblica (link condivisibile): sola lettura di UN contenuto per id.
+  const isPublicPreviewApi = pathname === '/api/data/preview' && request.method === 'GET'
   const isProtectedApi =
     pathname.startsWith('/api/generate') ||
     pathname.startsWith('/api/system/local') ||
-    (pathname.startsWith('/api/data') && !isPublicApprovalApi)
+    (pathname.startsWith('/api/data') && !isPublicApprovalApi && !isPublicPreviewApi)
 
   if (isApprove || isPreview) return NextResponse.next()
 

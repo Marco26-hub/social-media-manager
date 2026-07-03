@@ -54,7 +54,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Parse content from URL hash (?)  — shareable via link
+  // 1) localStorage: anteprima locale istantanea per chi ha appena generato.
   useEffect(() => {
     if (!id) return
     try {
@@ -73,6 +73,30 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
       const exRaw = localStorage.getItem(`preview_${id}_excluded`)
       if (exRaw) setExcluded(new Set(JSON.parse(exRaw)))
     } catch {}
+  }, [id])
+
+  // 2) DB: il link condiviso NON porta il localStorage → carica il contenuto REALE
+  //    (testi + immagini) dal server. Vince sui dati locali se presente.
+  useEffect(() => {
+    if (!id) return
+    let annullato = false
+    fetch(`/api/data/preview?id=${encodeURIComponent(id)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: Record<string, unknown> | null) => {
+        if (!d || annullato) return
+        const s = (v: unknown) => typeof v === 'string' ? v : ''
+        if (s(d.hook)) setHook(s(d.hook))
+        if (s(d.caption)) setCaption(s(d.caption))
+        if (s(d.hashtag)) setHashtag(s(d.hashtag))
+        if (s(d.cta)) setCta(s(d.cta))
+        if (s(d.link_media_1)) setMediaUrl(s(d.link_media_1))
+        if (s(d.brand_name)) setBrandName(s(d.brand_name))
+        if (s(d.social_handle)) setSocialHandle(s(d.social_handle))
+        const link = s(d.link_prodotto_finale) || s(d.link_prodotto)
+        if (link) setLinkProdotto(link)
+      })
+      .catch(() => {})
+    return () => { annullato = true }
   }, [id])
 
   function toggleExclude(key: string) {
