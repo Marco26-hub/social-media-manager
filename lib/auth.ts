@@ -2,17 +2,12 @@ import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { q, dbReady } from '@/lib/db'
-import { isDemo } from '@/lib/demo'
+import { AUTH_SECRET } from '@/lib/auth-secret'
 
 declare module 'next-auth' {
   interface User { id: string; email: string; name: string }
   interface Session { user: User }
 }
-
-const authSecret =
-  process.env.AUTH_SECRET ||
-  process.env.NEXTAUTH_SECRET ||
-  (process.env.NODE_ENV === 'production' && !isDemo() ? undefined : 'dev-secret-change-in-development')
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -54,5 +49,5 @@ export const authOptions: NextAuthOptions = {
   },
   pages: { signIn: '/login' },
   session: { strategy: 'jwt' },
-  secret: authSecret,
+  secret: AUTH_SECRET,
 }

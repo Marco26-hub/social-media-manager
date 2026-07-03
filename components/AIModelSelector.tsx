@@ -262,8 +262,8 @@ export default function AIModelSelector({ task }: { task?: Task }) {
 
   return (
     <div className="card p-4 md:p-5 mb-6 bg-gradient-to-br from-white to-gray-50 border-gray-100 overflow-visible">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:flex-wrap lg:justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1 lg:min-w-[260px]">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
             selected.provider === 'anthropic' ? 'bg-gradient-to-br from-violet-500 to-purple-600'
               : selected.provider === 'gemini' ? 'bg-gradient-to-br from-blue-500 to-indigo-600'

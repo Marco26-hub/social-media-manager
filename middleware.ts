@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { isDemo } from '@/lib/demo'
+import { AUTH_SECRET } from '@/lib/auth-secret'
 
 // Rate limiter in-memory per /api/generate/* (chiamate AI costose).
 // Sliding window per IP. Nota: lo stato è per-istanza; per deploy multi-istanza
@@ -42,7 +43,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isDemo()) return NextResponse.next()
-  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET })
+  const token = await getToken({ req: request, secret: AUTH_SECRET })
   const isAuthPage = pathname === '/login'
   const isDashboard = pathname.startsWith('/dashboard')
   const isApprove = pathname.startsWith('/approve')

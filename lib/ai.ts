@@ -6,10 +6,14 @@ const GEMINI_DEFAULT_MODEL = 'gemini-2.0-flash'
 const OPENCODE_API_URL = 'https://opencode.ai/zen/v1/chat/completions'
 const OPENCODE_PREFIX = 'opencode/'
 const OPENCODE_DEFAULT_MODEL = 'deepseek-v4-flash-free'
-// Ollama: server LLM LOCALE, API OpenAI-compatible su localhost:11434/v1. NIENTE key.
+// Ollama: server LLM LOCALE su localhost:11434. NIENTE key.
 // "Porta il tuo modello": gira sul Mac, zero costi, 100% privato, nessun rate-limit.
-const OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'http://127.0.0.1:11434/v1/chat/completions'
+// API nativa (/api/chat), non OpenAI-compatible (/v1/...): serve per poter alzare num_ctx —
+// senza, Ollama carica i modelli con contesto di default 4096, che tronca prompt/output
+// grandi (piano, blog high-quality) producendo JSON incompleto.
+const OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'http://127.0.0.1:11434/api/chat'
 const OLLAMA_PREFIX = 'ollama/'
+const OLLAMA_NUM_CTX = 16384
 
 // Ordine: modelli veloci/affidabili prima. Il 550B (lento su free tier) è escluso
 // dalla cascade per evitare timeout a catena. claude resta solo per Anthropic diretto.
@@ -205,8 +209,9 @@ async function tryOllamaModel(
   images: string[] = [],
 ): Promise<string | null> {
   try {
-    // Timeout 120s: i modelli locali su MPS sono più lenti del cloud ma niente rete.
-    const res = await callOllama(stripOllamaPrefix(model), systemPrompt, userPrompt, maxTokens, 120000, images)
+    // Timeout 5min: con num_ctx alzato a 16384 (serve per prompt/output grandi, vedi
+    // OLLAMA_NUM_CTX) il prompt-eval è più lento; 120s tagliava generazioni valide a metà.
+    const res = await callOllama(stripOllamaPrefix(model), systemPrompt, userPrompt, maxTokens, 300000, images)
     if (!res.trim()) throw new Error('Risposta AI vuota')
     recordAttempt(attempts, { provider: 'ollama', model, ok: true })
     return res
@@ -580,20 +585,29 @@ async function callOllama(
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeout)
 
-  const messages: { role: string; content: unknown }[] = []
+  // API nativa: content è testo semplice, le immagini vanno in un campo `images` a parte
+  // (base64 puro, niente url) — riusa lo stesso fetch+base64 di Gemini (fetchImageInline).
+  const imageParts = images.length ? (await Promise.all(images.slice(0, 4).map(fetchImageInline))).filter(Boolean) : []
+  const userMessage: { role: string; content: string; images?: string[] } = { role: 'user', content: userPrompt }
+  if (imageParts.length) userMessage.images = imageParts.map(p => p!.inline_data.data)
+
+  const messages: { role: string; content: string; images?: string[] }[] = []
   if (systemPrompt) messages.push({ role: 'system', content: systemPrompt })
-  messages.push({ role: 'user', content: buildOpenAIUserContent(userPrompt, images) })
+  messages.push(userMessage)
 
   try {
     const res = await fetch(OLLAMA_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
-      body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: 0.85, stream: false }),
+      body: JSON.stringify({
+        model, messages, stream: false,
+        options: { num_ctx: OLLAMA_NUM_CTX, num_predict: maxTokens, temperature: 0.85 },
+      }),
     })
     if (!res.ok) throw new Error(formatHttpError(res.status, await res.text().catch(() => '')))
     const data = await res.json()
-    const msg = data.choices?.[0]?.message ?? {}
+    const msg = data.message ?? {}
     // I reasoning model (es. deepseek-r1) a volte mettono il pensiero in `reasoning`
     // o lo inline-ano in <think>…</think>: tieni solo la risposta finale.
     let content: string = msg.content || ''
@@ -605,8 +619,14 @@ async function callOllama(
     }
     return content
   } catch (e) {
+    // Timeout nostro (AbortController) ≠ server spento: Ollama ha risposto, solo troppo
+    // lento per il timeout impostato — messaggio diverso da ECONNREFUSED (altrimenti
+    // sembra un problema di connessione quando in realtà la generazione era in corso).
+    if (e instanceof Error && e.name === 'AbortError') {
+      throw new Error(`Ollama locale ha impiegato più di ${Math.round(timeout / 1000)}s a rispondere — prompt/output troppo pesante, riprova con quality più bassa o un modello più veloce`)
+    }
     // Server locale spento = ECONNREFUSED/fetch failed. Messaggio azionabile invece di errore criptico.
-    if (e instanceof Error && /fetch failed|ECONNREFUSED|network|aborted|terminated/i.test(e.message)) {
+    if (e instanceof Error && /fetch failed|ECONNREFUSED|network|terminated/i.test(e.message)) {
       throw new Error('Ollama locale non raggiungibile su 127.0.0.1:11434 — avvia "ollama serve" sul Mac')
     }
     throw e
