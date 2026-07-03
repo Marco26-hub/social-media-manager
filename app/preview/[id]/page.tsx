@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import PostPreview from '@/components/PostPreview'
 import type { Contenuto } from '@/lib/types'
-import { Ban, Check } from 'lucide-react'
+import { Ban, Check, ArrowLeft, LayoutDashboard, ArrowUp } from 'lucide-react'
 
 const ALL_PLATFORMS: { canale: Contenuto['canale']; formato: Contenuto['formato']; label: string }[] = [
   { canale: 'instagram', formato: 'post', label: 'Instagram Post' },
@@ -29,7 +30,9 @@ const DEMO_DATA = {
 }
 
 export default function PreviewPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter()
   const [id, setId] = useState('')
+  const [showTop, setShowTop] = useState(false)
   const [hook, setHook] = useState(DEMO_DATA.hook)
   const [caption, setCaption] = useState(DEMO_DATA.caption)
   const [hashtag, setHashtag] = useState(DEMO_DATA.hashtag)
@@ -43,6 +46,13 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
   useEffect(() => {
     params.then(p => setId(p.id))
   }, [params])
+
+  // Mostra il bottone "torna su" dopo un po' di scroll.
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 400)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   // Parse content from URL hash (?)  — shareable via link
   useEffect(() => {
@@ -111,6 +121,16 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
   return (
     <div className="min-h-screen bg-gray-50 py-6 px-4">
       <div className="max-w-6xl mx-auto">
+        {/* Navigazione: indietro + calendario */}
+        <div className="flex items-center gap-2 mb-4">
+          <button onClick={() => router.back()} className="btn-secondary py-1.5 px-3 text-sm inline-flex items-center gap-1.5">
+            <ArrowLeft className="w-4 h-4" /> Indietro
+          </button>
+          <button onClick={() => router.push('/dashboard/calendario')} className="btn-secondary py-1.5 px-3 text-sm inline-flex items-center gap-1.5">
+            <LayoutDashboard className="w-4 h-4" /> Calendario
+          </button>
+        </div>
+
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900">Anteprima Contenuto</h1>
           <p className="text-sm text-gray-500 mt-1">Come apparirà su ogni piattaforma social</p>
@@ -267,6 +287,17 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
           Anteprima in tempo reale · Modifica i campi sopra per vedere le modifiche · Seleziona quali piattaforme escludere
         </p>
       </div>
+
+      {/* Torna su — flottante, appare dopo lo scroll */}
+      {showTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          title="Torna su"
+          className="fixed bottom-6 right-6 z-40 w-11 h-11 rounded-full bg-gray-900 text-white shadow-lg flex items-center justify-center hover:bg-gray-800 transition-colors"
+        >
+          <ArrowUp className="w-5 h-5" />
+        </button>
+      )}
     </div>
   )
 }
