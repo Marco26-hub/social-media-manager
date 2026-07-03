@@ -3,9 +3,9 @@
 
 import { q } from '@/lib/db'
 import { validateMediaUrls } from '@/lib/media-validate'
+import { getBlotatoKey } from '@/lib/blotato-key'
 
 const BLOTATO_API_BASE = process.env.BLOTATO_API_URL || 'https://backend.blotato.com'
-const BLOTATO_API_KEY = process.env.BLOTATO_API_KEY
 
 type ContentRow = Record<string, unknown>
 
@@ -36,8 +36,9 @@ export async function scheduleOnBlotato(
   clienteId: string,
   row: ContentRow,
 ) {
-  if (!BLOTATO_API_KEY) {
-    console.warn('[Blotato] BLOTATO_API_KEY non configurata')
+  const blotatoKey = await getBlotatoKey(clienteId)
+  if (!blotatoKey) {
+    console.warn('[Blotato] key non configurata (né per cliente né env)')
     return null
   }
 
@@ -97,8 +98,8 @@ export async function scheduleOnBlotato(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${BLOTATO_API_KEY}`,
-      'blotato-api-key': BLOTATO_API_KEY,
+      Authorization: `Bearer ${blotatoKey}`,
+      'blotato-api-key': blotatoKey,
     },
     body: JSON.stringify(payload),
   })

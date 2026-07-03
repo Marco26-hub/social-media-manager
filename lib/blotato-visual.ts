@@ -108,11 +108,12 @@ export function planVisual(row: ContentRow): { templateId: string; kind: VisualK
   }
 }
 
-export async function createVisual(opts: { templateId: string; prompt: string; inputs?: Record<string, unknown>; title?: string }): Promise<string> {
-  if (!BLOTATO_API_KEY) throw new Error('BLOTATO_API_KEY non configurata: impossibile generare la grafica.')
+export async function createVisual(opts: { templateId: string; prompt: string; inputs?: Record<string, unknown>; title?: string; apiKey?: string }): Promise<string> {
+  const key = opts.apiKey || BLOTATO_API_KEY
+  if (!key) throw new Error('Key Blotato non configurata: impossibile generare la grafica.')
   const res = await fetch(`${BLOTATO_BACKEND}/v2/videos/from-templates`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'blotato-api-key': BLOTATO_API_KEY },
+    headers: { 'Content-Type': 'application/json', 'blotato-api-key': key },
     body: JSON.stringify({
       templateId: extractTemplateId(opts.templateId),
       inputs: opts.inputs || {},
@@ -132,10 +133,11 @@ export async function createVisual(opts: { templateId: string; prompt: string; i
   return id
 }
 
-export async function getVisualStatus(id: string): Promise<VisualStatus> {
-  if (!BLOTATO_API_KEY) throw new Error('BLOTATO_API_KEY non configurata.')
+export async function getVisualStatus(id: string, apiKey?: string): Promise<VisualStatus> {
+  const key = apiKey || BLOTATO_API_KEY
+  if (!key) throw new Error('Key Blotato non configurata.')
   const res = await fetch(`${BLOTATO_BACKEND}/v2/videos/creations/${encodeURIComponent(id)}`, {
-    headers: { 'blotato-api-key': BLOTATO_API_KEY },
+    headers: { 'blotato-api-key': key },
   })
   if (!res.ok) {
     const t = await res.text().catch(() => '')

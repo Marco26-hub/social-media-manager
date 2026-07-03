@@ -3,16 +3,22 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
 import type { Setting } from '@/lib/types'
-import { Save, RefreshCw } from 'lucide-react'
+import { Save, RefreshCw, KeyRound, Check } from 'lucide-react'
 import { demoSettings } from '@/lib/demo-data'
 
 import { isDemo } from '@/lib/demo'
+
+// Key gestite con card dedicata (secret mascherato), escluse dalla lista generica.
+const SECRET_KEYS = new Set(['blotato_api_key'])
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Setting[]>([])
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState<string | null>(null)
   const [saved, setSaved]       = useState<string | null>(null)
+  const [blotatoKey, setBlotatoKey] = useState('')
+  const [savingBlotato, setSavingBlotato] = useState(false)
+  const [savedBlotato, setSavedBlotato] = useState(false)
   const demo = isDemo()
 
   useEffect(() => {
@@ -23,9 +29,33 @@ export default function SettingsPage() {
     }
     fetch('/api/data/settings')
       .then(res => res.json())
-      .then(data => { setSettings(data ?? []); setLoading(false) })
+      .then(data => {
+        const arr = (data ?? []) as Setting[]
+        setSettings(arr)
+        const bk = arr.find(s => s.chiave === 'blotato_api_key')?.valore || ''
+        setBlotatoKey(bk)
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
   }, [demo])
+
+  async function saveBlotatoKey() {
+    setSavingBlotato(true)
+    setSavedBlotato(false)
+    try {
+      if (!demo) {
+        await fetch('/api/data/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chiave: 'blotato_api_key', valore: blotatoKey.trim(), descrizione: 'API key Blotato del cliente (pubblicazione social)' }),
+        })
+      }
+      setSavedBlotato(true)
+      setTimeout(() => setSavedBlotato(false), 2500)
+    } finally {
+      setSavingBlotato(false)
+    }
+  }
 
   async function updateSetting(s: Setting, newVal: string) {
     setSaving(s.id)
@@ -76,7 +106,29 @@ export default function SettingsPage() {
         </div>
       ) : (
         <div className="max-w-2xl space-y-3">
-          {settings.map(s => {
+          {/* Blotato API key — per-cliente (ogni cliente il suo account Blotato) */}
+          <div className="card p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <KeyRound className="w-4 h-4 text-gray-500" />
+              <p className="text-sm font-medium text-gray-900">Blotato API Key (di questo cliente)</p>
+            </div>
+            <p className="text-xs text-gray-400 mb-2">Key del cliente attivo per pubblicare sui suoi social. Se vuota, si usa la key globale dell&apos;agenzia (se impostata). La key resta privata.</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="password"
+                value={blotatoKey}
+                onChange={e => setBlotatoKey(e.target.value)}
+                placeholder="Incolla la API key Blotato del cliente"
+                className="input flex-1 font-mono text-sm"
+                autoComplete="off"
+              />
+              <button onClick={saveBlotatoKey} disabled={savingBlotato} className="btn-primary py-2 px-4 justify-center whitespace-nowrap">
+                {savingBlotato ? <RefreshCw className="w-4 h-4 animate-spin" /> : savedBlotato ? <><Check className="w-4 h-4" /> Salvata</> : 'Salva key'}
+              </button>
+            </div>
+          </div>
+
+          {settings.filter(s => !SECRET_KEYS.has(s.chiave)).map(s => {
             const isDry = s.chiave === 'dry_run'
             // dry_run invertito: lo switch acceso (blu) = REAL/pubblica; il valore TRUE = DEMO.
             // Quindi lo stato "acceso" dello switch corrisponde a valore FALSE.

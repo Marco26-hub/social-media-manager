@@ -30,3 +30,24 @@ export async function PATCH(request: Request) {
     return apiError(e)
   }
 }
+
+// Upsert per chiave: crea o aggiorna una setting del cliente attivo (es. blotato_api_key).
+// Serve per impostazioni non seed-ate a priori (key per-cliente).
+export async function POST(request: Request) {
+  try {
+    await requireAuth()
+    const { chiave, valore, descrizione } = await request.json()
+    if (!chiave || typeof chiave !== 'string') return NextResponse.json({ error: 'chiave richiesta' }, { status: 400 })
+    if (isDemo() || !dbReady()) return NextResponse.json({ ok: true, demo: true })
+    const cid = await requireClienteId()
+    await q(
+      `INSERT INTO settings (cliente_id, chiave, valore, descrizione)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (cliente_id, chiave) DO UPDATE SET valore = EXCLUDED.valore, updated_at = now()`,
+      [cid, chiave, String(valore ?? ''), descrizione || null],
+    )
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    return apiError(e)
+  }
+}

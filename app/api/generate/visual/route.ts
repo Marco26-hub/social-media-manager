@@ -4,6 +4,7 @@ import { requireAuth, requireClienteAccess } from '@/lib/auth-utils'
 import { isDemo } from '@/lib/demo'
 import { apiError } from '@/lib/api-error'
 import { blotatoVisualConfigured, planVisual, createVisual } from '@/lib/blotato-visual'
+import { getBlotatoKey } from '@/lib/blotato-key'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +37,8 @@ export async function POST(req: Request) {
 
     const plan = planVisual(row)
     const title = `${row.canale || 'social'} ${row.formato || ''} ${idContenuto}`.trim()
-    const jobId = await createVisual({ templateId: plan.templateId, prompt: plan.prompt, inputs: plan.inputs, title })
+    const apiKey = (await getBlotatoKey(cid)) || undefined
+    const jobId = await createVisual({ templateId: plan.templateId, prompt: plan.prompt, inputs: plan.inputs, title, apiKey })
 
     await q(
       `UPDATE calendario

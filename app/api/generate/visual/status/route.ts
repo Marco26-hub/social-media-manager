@@ -4,6 +4,7 @@ import { requireAuth, requireClienteAccess } from '@/lib/auth-utils'
 import { isDemo } from '@/lib/demo'
 import { apiError } from '@/lib/api-error'
 import { blotatoVisualConfigured, getVisualStatus } from '@/lib/blotato-visual'
+import { getBlotatoKey } from '@/lib/blotato-key'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +47,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: true, status: 'done', kind: str(row.visual_kind) || null, mediaUrl: str(row.visual_url) || null, imageUrls: imgs })
     }
 
-    const st = await getVisualStatus(jobId)
+    const st = await getVisualStatus(jobId, (await getBlotatoKey(cid)) || undefined)
 
     if (st.failed) {
       await q(`UPDATE calendario SET visual_status = 'failed', visual_error = $1, visual_synced_at = now() WHERE cliente_id = $2 AND id_contenuto = $3`,
