@@ -58,24 +58,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'status non valido' }, { status: 400 })
     }
 
-    // Trova il contenuto nel calendario tramite blotato_post_id
+    // Chiave affidabile: blotato_post_id (univoco per post). È il percorso normale.
     let rows = await q('SELECT id FROM calendario WHERE blotato_post_id = $1 LIMIT 1', [blotato_post_id])
 
     if (!rows.length) {
-      // Cerca per scheduled_at come fallback
+      // Fallback SOLO se manca il match per id (raro). Match ESATTO su timestamp+canale,
+      // limitato ai post davvero in attesa di questo callback (blotato_post_id ancora NULL).
+      // Multi-tenant: con più clienti lo stesso giorno/canale il vecchio match per sola
+      // DATA con LIMIT 1 poteva colpire il post di un ALTRO cliente → qui, se il match
+      // non è UNIVOCO, NON indoviniamo: rifiutiamo (integrità > completezza).
       const scheduledStr = scheduled_at ? String(scheduled_at).split('.')[0].replace('T', ' ') : ''
-      if (scheduledStr) {
-        const fallback = await q(
-          'SELECT id FROM calendario WHERE blotato_scheduled_at::date = $1::date AND canale = $2 ORDER BY created_at DESC LIMIT 1',
-          [scheduledStr, platform || ''],
-        )
-        if (!fallback.length) {
-          return NextResponse.json({ error: 'Contenuto non trovato' }, { status: 404 })
-        }
-        rows = fallback
-      } else {
+      if (!scheduledStr) {
         return NextResponse.json({ error: 'Contenuto non trovato' }, { status: 404 })
       }
+      const fallback = await q(
+        `SELECT id FROM calendario
+         WHERE blotato_scheduled_at = $1::timestamp AND canale = $2 AND blotato_post_id IS NULL
+         LIMIT 2`,
+        [scheduledStr, platform || ''],
+      )
+      if (!fallback.length) {
+        return NextResponse.json({ error: 'Contenuto non trovato' }, { status: 404 })
+      }
+      if (fallback.length > 1) {
+        // Più contenuti combaciano (possibilmente di clienti diversi): ambiguo, non aggiornare.
+        console.warn('[Blotato webhook] match ambiguo su scheduled_at+canale, aggiornamento rifiutato', { scheduledStr, platform })
+        return NextResponse.json({ error: 'Match ambiguo: impossibile identificare il contenuto in modo univoco' }, { status: 409 })
+      }
+      rows = fallback
     }
 
     const calendarioId = rows[0] ? (rows[0] as Record<string, string>).id : null
