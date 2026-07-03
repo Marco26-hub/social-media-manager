@@ -167,19 +167,23 @@ ${buildExtendedOutputSchema()}
     const IMAGES_PER_CHUNK = 7
     const chunks: Chunk[] = []
     if (periodo === 'mensile') {
+      // Mensile: 4 chunk settimanali. Per medium/high riduciamo il targetMax
+      // (7 invece di 9) perché lo schema esteso + credito limitato troncherebbe.
+      const maxPerWeek = contentQuality === 'soft' ? 9 : 7
       for (let i = 0; i < 4; i++) {
         chunks.push({
           start: fmtDate(addDays(today, i * 7)),
           end: fmtDate(addDays(today, i * 7 + 6)),
           label: `Settimana ${i + 1} del piano mensile`,
-          targetMin: 6, targetMax: 9,
+          targetMin: 6, targetMax: maxPerWeek,
           images: mediaPool.slice(i * IMAGES_PER_CHUNK, (i + 1) * IMAGES_PER_CHUNK),
         })
       }
-    } else if (contentQuality === 'high') {
-      // High quality: schema esteso con scenes/slides/A/B = output molto grande
-      // per item. 7-10 item in un solo chunk truncano anche a 16000 token.
-      // Split in 2 mezze settimane (4-5 item ciascuna) per restare nei limiti.
+    } else if (contentQuality === 'high' || contentQuality === 'medium') {
+      // Quality medium/high: schema esteso (campi strategia, scenes, A/B, KPI...)
+      // con 7-10 item in un solo chunk il JSON tronca anche a 12000 token, e su
+      // OpenRouter con credito limitato (~10400) tronca sempre. Split in 2 mezze
+      // settimane (4-5 item ciascuna) = ~4000-7500 token per chunk, rientra nei limiti.
       chunks.push({
         start: fmtDate(today),
         end: fmtDate(addDays(today, 3)),
