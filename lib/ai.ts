@@ -568,11 +568,14 @@ async function callGemini(
   const imageParts = (await Promise.all(images.slice(0, 4).map(fetchImageInline))).filter(Boolean)
   const userParts: unknown[] = [{ text: userPrompt }, ...imageParts]
 
+  // Cap output PER MODELLO: gemini-2.5-* supporta ~65K, ma 2.0/1.5-flash cappano a
+  // 8192 — richiederne di più può dare 400 (o clamp silenzioso). Rispetta il vero
+  // limite del modello scelto invece di un cap fisso che eccede su 2.0-flash.
+  const geminiOutCap = /gemini[-.]2\.5|gemini[-.]2-5/i.test(model) ? 65536 : 8192
   const body: Record<string, unknown> = {
     contents: [{ role: 'user', parts: userParts }],
     // maxOutputTokens generoso: con schema JSON ricchi 4000 può troncare (MAX_TOKENS → vuoto).
-    // Cap 16384: gemini-2.5-flash supporta 65K output, gemini-2.0-flash usa il suo max 8192.
-    generationConfig: { maxOutputTokens: Math.min(Math.max(maxTokens, 2048), 16384), temperature: 0.8 },
+    generationConfig: { maxOutputTokens: Math.min(Math.max(maxTokens, 2048), geminiOutCap), temperature: 0.8 },
     // Marketing/moda può far scattare filtri safety troppo aggressivi → blocco silenzioso.
     safetySettings: GEMINI_SAFETY,
   }
