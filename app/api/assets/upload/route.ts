@@ -9,7 +9,7 @@ import { isStorageConfigured, uploadToStorage } from '@/lib/storage'
 
 export const runtime = 'nodejs'
 
-const MAX_FILES = 7
+const MAX_FILES = 14
 const MAX_FILE_SIZE = 8 * 1024 * 1024
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'])
 

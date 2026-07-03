@@ -18,6 +18,10 @@ import { useRuntimeDemo } from '@/lib/demo-client'
 import { CONTENT_QUALITY_OPTIONS, type ContentQuality } from '@/lib/content-quality'
 import { GENERATION_OPTIMIZATION_CYCLE } from '@/lib/production-cycle'
 
+// Cap asset per singolo post/carosello. Nota: alcune piattaforme limitano di più
+// in fase di publish (Instagram carosello 10, X 4) — vedi warning in fondo al form.
+const MAX_POST_ASSETS = 14
+
 type QualitySelection = 'auto' | ContentQuality
 type UploadedAsset = {
   name: string
@@ -100,7 +104,7 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
     setAssets(prev => {
       const existing = new Set(prev.map(a => a.url))
       const nuovi: UploadedAsset[] = imgs.filter(u => !existing.has(u)).map(u => ({ name: p.nome_prodotto, url: u, source: 'url' as const }))
-      return [...prev, ...nuovi].slice(0, 7)
+      return [...prev, ...nuovi].slice(0, MAX_POST_ASSETS)
     })
   }
 
@@ -128,7 +132,7 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
       setUploading(true)
       const form = new FormData()
       form.append('cliente_id', clienteId)
-      const selectedFiles = Array.from(files).slice(0, 7 - assets.length)
+      const selectedFiles = Array.from(files).slice(0, MAX_POST_ASSETS - assets.length)
       selectedFiles.forEach(file => form.append('files', file))
       const previews = new Map(selectedFiles.map(file => [file.name, URL.createObjectURL(file)]))
       const res = await fetch('/api/assets/upload', { method: 'POST', body: form })
@@ -136,7 +140,7 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
       const data = await res.json() as { assets?: UploadedAsset[] }
       // name prefillato dal filename pulito (l'utente può correggerlo).
       const uploaded = (data.assets || []).map(asset => ({ ...asset, previewUrl: previews.get(asset.name) || asset.url, name: prettyName(asset.name) }))
-      setAssets(prev => [...prev, ...uploaded].slice(0, 7))
+      setAssets(prev => [...prev, ...uploaded].slice(0, MAX_POST_ASSETS))
     } catch (e) {
       setErrors(prev => ({ ...prev, asset_upload: (e as Error).message }))
     } finally {
@@ -155,7 +159,7 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
         url: parsed.toString(),
         source: 'url',
       }
-      setAssets(prev => [...prev, asset].slice(0, 7))
+      setAssets(prev => [...prev, asset].slice(0, MAX_POST_ASSETS))
       setAssetUrl('')
     } catch {
       setErrors(prev => ({ ...prev, asset_url: 'Inserisci un URL pubblico valido, es. https://...' }))
@@ -303,7 +307,8 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
               Carica foto prodotto/brand o incolla URL pubblici: entrano nel prompt e vengono salvate nel contenuto.
             </p>
             <p className="text-[11px] text-amber-700 mt-1">
-              Per autopublishing Blotato usa URL pubblici o immagini caricate qui; max 7 asset.
+              Per autopublishing Blotato usa URL pubblici o immagini caricate qui; max {MAX_POST_ASSETS} asset
+              (attenzione: Instagram carosello pubblica max 10, X max 4).
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 lg:w-[520px]">
@@ -315,7 +320,7 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
                 accept="image/*"
                 multiple
                 className="hidden"
-                disabled={uploading || assets.length >= 7}
+                disabled={uploading || assets.length >= MAX_POST_ASSETS}
                 onChange={event => uploadAssets(event.target.files)}
               />
             </label>

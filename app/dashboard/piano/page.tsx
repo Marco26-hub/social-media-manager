@@ -49,8 +49,8 @@ export default function PianoPage() {
     setUploadingImages(true)
     try {
       const selected = Array.from(files).slice(0, MAX_PLAN_IMAGES - planAssets.length)
-      for (let i = 0; i < selected.length; i += 7) {
-        const chunk = selected.slice(i, i + 7)
+      for (let i = 0; i < selected.length; i += 14) {
+        const chunk = selected.slice(i, i + 14)
         const form = new FormData()
         form.append('cliente_id', clienteId)
         chunk.forEach(file => form.append('files', file))
