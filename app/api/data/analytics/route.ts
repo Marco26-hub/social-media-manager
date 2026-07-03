@@ -101,7 +101,11 @@ export async function GET() {
     try {
       const r = await q(`SELECT count(*)::int AS n FROM social_accounts WHERE cliente_id = $1 AND platform = 'instagram' AND attivo = true`, [cid]) as Row[]
       igConnected = num(r[0]?.n)
-    } catch { igConnected = 0 }
+    } catch (e) {
+      // Errore DB (tabella non migrata, ecc.): logga invece di far sembrare "0 account".
+      console.warn('[analytics] query social_accounts fallita:', (e as Error).message.slice(0, 200))
+      igConnected = 0
+    }
 
     return NextResponse.json({
       demo: false,

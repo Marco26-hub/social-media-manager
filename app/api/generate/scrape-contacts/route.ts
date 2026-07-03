@@ -188,6 +188,7 @@ export async function POST(request: Request) {
 
     // Arricchisci con AI (indirizzo, orari) se il testo ha abbastanza contenuto
     let aiEnrich: Record<string, unknown> = {}
+    let enrichmentOk = false
     if (extracted.text_sample.length > 200) {
       try {
         const enrichPrompt = AI_ENRICH_PROMPT
@@ -205,9 +206,12 @@ export async function POST(request: Request) {
           maxTokens: 500,
         })
         aiEnrich = (extractJSON(aiRes) as Record<string, unknown>) || {}
+        enrichmentOk = true
       } catch {
-        // AI fallback silenzioso — i dati regex sono già validi
-        aiEnrich = { note_scraping: 'Arricchimento AI non disponibile (rate limit). Dati regex completi.' }
+        // Enrichment AI fallito (rate limit / JSON malformato): i dati regex core
+        // (email/telefoni/social) restano validi, ma indirizzo/orari NON sono stati
+        // estratti. Non fingere che sia andato tutto: enrichment_ok=false esplicito.
+        aiEnrich = {}
       }
     }
 
@@ -219,7 +223,12 @@ export async function POST(request: Request) {
       ...regexData,
       indirizzo: (aiEnrich.indirizzo as string) || '',
       orari: (aiEnrich.orari as string) || '',
-      note_scraping: (aiEnrich.note_scraping as string) || `Scraping reale: ${extracted.emails.length} email, ${extracted.telefono.length} telefoni, ${extracted.social.length} social trovati`,
+      enrichment_ok: enrichmentOk,
+      note_scraping: (aiEnrich.note_scraping as string) || (
+        enrichmentOk
+          ? `Scraping reale: ${extracted.emails.length} email, ${extracted.telefono.length} telefoni, ${extracted.social.length} social trovati`
+          : `Dati base estratti (${extracted.emails.length} email, ${extracted.telefono.length} telefoni). Arricchimento AI (indirizzo/orari) non disponibile — riprova o cambia modello AI.`
+      ),
       fonte: 'real_scrape',
     })
   } catch (e) {
