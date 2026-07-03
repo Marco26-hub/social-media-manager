@@ -211,9 +211,10 @@ ${buildExtendedOutputSchema(contentQuality)}
     const systemPrompt = `Sei un social media manager, creative strategist e SEO/GEO specialist senior (10+ anni, brand premium). Obiettivo: ${obiettivo || 'mix'}. Livello qualità: ${contentQuality}. Crei piani editoriali dove OGNI contenuto è unico, professionale e strategico: hook diversi, angoli ruotati, funnel bilanciato, keyword SEO/GEO sfruttate, zero cliché, grammatica italiana impeccabile. Rispondi con JSON array valido, nessun altro testo. Non inventare prezzi, stock o claim non presenti nei dati.`
 
     async function generateChunk(chunk: Chunk): Promise<{ ok: true; items: Record<string, unknown>[] } | { ok: false; error: string }> {
-      const userPrompt = `Agisci come Social Media Manager senior per brand abbigliamento e-commerce.
+      async function attempt(targetMin: number, targetMax: number, maxTok: number): Promise<{ ok: true; items: Record<string, unknown>[] } | { ok: false; error: string }> {
+        const userPrompt = `Agisci come Social Media Manager senior per brand abbigliamento e-commerce.
 Crea contenuti per ${chunk.label}, dal ${chunk.start} al ${chunk.end}, per / ${piattaformeStr} /.
-Genera TRA ${chunk.targetMin} E ${chunk.targetMax} contenuti (mai meno di ${chunk.targetMin}). Ogni data_pubblicazione DEVE cadere dentro il range ${chunk.start}..${chunk.end} incluso — mai fuori, mai un placeholder generico.
+Genera TRA ${targetMin} E ${targetMax} contenuti (mai meno di ${targetMin}). Ogni data_pubblicazione DEVE cadere dentro il range ${chunk.start}..${chunk.end} incluso — mai fuori, mai un placeholder generico.
 
 BRAND:
 ${brandJson}
@@ -228,30 +229,38 @@ Tono moderno fashion coerente con brand.
 
 Output SOLO JSON array valido:
 [{"data_pubblicazione":"YYYY-MM-DD (dentro ${chunk.start}..${chunk.end})","ora_pubblicazione":"HH:MM","canale":"USA SOLO un canale tra quelli in / ${piattaformeStr} / (valori ammessi: instagram|facebook|tiktok|pinterest|linkedin|threads|x|youtube_shorts|blog)","formato":"post|carousel|reel|story|pin|short|video|articolo","obiettivo":"vendita|awareness|community|educazione|ispirazione|trending","product_id":"","nome_prodotto":"","tema":"","hook":"","caption":"","hashtag":"","cta":""}]`
-        + '\n' + PLAN_STANDARDS + '\n' + qualityPrompt
-        + buildPlanAssetContext(chunk.images)
+          + '\n' + PLAN_STANDARDS + '\n' + qualityPrompt
+          + buildPlanAssetContext(chunk.images)
 
-      try {
-        const aiRes = await callAI({
-          model: model || 'meta-llama/llama-3.3-70b-instruct:free',
-          systemPrompt,
-          userPrompt,
-          openrouterKey: openrouter_key, geminiKey: gemini_key, opencodeKey: opencode_key,
-          // VISION: solo le foto di QUESTO blocco, stesso ordine con cui
-          // nextChunkMediaSlots() le assegnerà ai contenuti generati qui.
-          images: chunk.images,
-          // Token budget per chunk in base alla qualità:
-          // soft=8000 (campi base, ~600 token/item), medium=12000 (campi estesi,
-          // ~1000 token/item), high=16000 (scenes/slides/A-B, ~1500 token/item).
-          // Prima era 4000/6000/8000 e il JSON si troncava a metà → malformed.
-          maxTokens: contentQuality === 'high' ? 16000 : contentQuality === 'medium' ? 12000 : 8000,
-          timeoutMs: 90000,
-        })
-        const items = extractJSONArray(aiRes) as Record<string, unknown>[]
-        return { ok: true, items }
-      } catch (e) {
-        return { ok: false, error: e instanceof Error ? e.message : 'Errore generazione blocco' }
+        try {
+          const aiRes = await callAI({
+            model: model || 'meta-llama/llama-3.3-70b-instruct:free',
+            systemPrompt,
+            userPrompt,
+            openrouterKey: openrouter_key, geminiKey: gemini_key, opencodeKey: opencode_key,
+            images: chunk.images,
+            maxTokens: maxTok,
+            timeoutMs: 90000,
+          })
+          const items = extractJSONArray(aiRes) as Record<string, unknown>[]
+          return { ok: true, items }
+        } catch (e) {
+          return { ok: false, error: e instanceof Error ? e.message : 'Errore generazione blocco' }
+        }
       }
+
+      const baseMaxTok = contentQuality === 'high' ? 16000 : contentQuality === 'medium' ? 12000 : 8000
+      // Primo tentativo: target completo
+      const first = await attempt(chunk.targetMin, chunk.targetMax, baseMaxTok)
+      if (first.ok) return first
+      // Retry su malformed JSON (troncamento): riduci item e token. Il modello
+      // a volte è più verboso del previsto e sfora anche col bridge 402.
+      if (/malformed|truncat|no json array/i.test(first.error)) {
+        console.warn('[plan retry]', `chunk "${chunk.label}" malformed, retry con ${Math.max(2, Math.floor(chunk.targetMin / 2))}-${Math.max(3, Math.floor(chunk.targetMax / 2))} item`)
+        const retry = await attempt(Math.max(2, Math.floor(chunk.targetMin / 2)), Math.max(3, Math.floor(chunk.targetMax / 2)), Math.floor(baseMaxTok / 2))
+        if (retry.ok) return retry
+      }
+      return first
     }
 
     // Blocchi indipendenti eseguiti in parallelo: se uno fallisce (rate limit,
