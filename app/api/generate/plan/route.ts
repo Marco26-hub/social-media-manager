@@ -70,6 +70,26 @@ ${PRO_COPY_STANDARDS}
 
 Non inventare prezzi, stock, sconti o claim non presenti nei dati brand/prodotti.`
 
+// VISION: stesso principio di generate/content (buildAssetContext) applicato al piano
+// multi-contenuto. Mostriamo alla AI le prime N foto realmente caricate (in ordine —
+// lo stesso ordine con cui nextMediaSlots() le assegnerà dopo), così hook/caption/tema
+// dei primi contenuti descrivono quello che è VERAMENTE nella foto (capo, colore,
+// ambientazione) invece di restare generici. Gli item oltre le foto mostrate restano
+// coerenti su brand/prodotti come prima (nessuna foto = nessuna vision per quello slot).
+function buildPlanAssetContext(mediaPool: string[], shown: string[]) {
+  if (!mediaPool.length) return ''
+  return `
+
+FOTO CARICATE DALL'UTENTE (le vedi in allegato, ${shown.length} di ${mediaPool.length} totali, in ordine di caricamento):
+${shown.map((url, index) => `${index + 1}. ${url}`).join('\n')}
+
+⚠️ VISION — istruzioni vincolanti:
+- GUARDA ogni foto allegata e scrivi il contenuto (hook/caption/tema) SU QUELLO CHE VEDI DAVVERO: capo, colore, materiale, ambientazione, mood.
+- Assegna la foto N al contenuto N-esimo del piano nell'ordine in cui generi l'array (la foto 1 → primo contenuto, foto 2 → secondo, ecc.) — verranno allegate esattamente in questo ordine.
+- Per i contenuti oltre le ${shown.length} foto mostrate, resta comunque coerente con lo stile/prodotti visti finora + i dati brand/prodotti sopra.
+- Non inventare dettagli visivi non presenti nelle foto.`
+}
+
 function isMissingDbColumn(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || '')
   return /column .* does not exist|42703/i.test(message)
@@ -159,17 +179,25 @@ Schema operativo extra per ogni item:
 ${buildExtendedOutputSchema()}
 `
 
+    // Cap 7: stesso limite usato da generate/content per singolo contenuto — oltre
+    // le prime 7 foto la chiamata vision diventa pesante/inaffidabile su modelli free.
+    const mediaShown = mediaPool.slice(0, 7)
+
     const userPrompt = promptTemplate
       .replace('{{PIATTAFORME}}', `/ ${piattaformeStr} /`)
       .replace('{{BRAND}}', JSON.stringify(brand || {}, null, 2))
       .replace('{{PRODOTTI}}', JSON.stringify(products || [], null, 2))
       + '\n' + PLAN_STANDARDS + '\n' + qualityPrompt
+      + buildPlanAssetContext(mediaPool, mediaShown)
 
     const aiRes = await callAI({
       model: model || 'meta-llama/llama-3.3-70b-instruct:free',
       systemPrompt: `Sei un social media manager, creative strategist e SEO/GEO specialist senior (10+ anni, brand premium). Obiettivo: ${obiettivo || 'mix'}. Livello qualità: ${contentQuality}. Crei piani editoriali dove OGNI contenuto è unico, professionale e strategico: hook diversi, angoli ruotati, funnel bilanciato, keyword SEO/GEO sfruttate, zero cliché, grammatica italiana impeccabile. Rispondi con JSON array valido, nessun altro testo. Non inventare prezzi, stock o claim non presenti nei dati.`,
       userPrompt,
       openrouterKey: openrouter_key, geminiKey: gemini_key, opencodeKey: opencode_key,
+      // VISION: le prime N foto caricate, stesso ordine con cui nextMediaSlots() le
+      // assegnerà ai contenuti — la AI le vede davvero e scrive su quello che c'è.
+      images: mediaShown,
       maxTokens: contentQuality === 'high' ? 8000 : contentQuality === 'medium' ? 6000 : 4000,
     })
 
