@@ -219,6 +219,7 @@ Output SOLO JSON array valido:
           // nextChunkMediaSlots() le assegnerà ai contenuti generati qui.
           images: chunk.images,
           maxTokens: contentQuality === 'high' ? 8000 : contentQuality === 'medium' ? 6000 : 4000,
+          timeoutMs: 90000,
         })
         const items = extractJSONArray(aiRes) as Record<string, unknown>[]
         return { ok: true, items }
