@@ -80,7 +80,7 @@ export default function PianoPage() {
     setConfirmOpen(true)
   }
 
-  async function genera() {
+  async function genera(fase?: 1 | 2) {
     setConfirmOpen(false)
     setMsg(null)
 
@@ -90,11 +90,8 @@ export default function PianoPage() {
     }
 
     const aiSettings = readAISettings()
-    // La generazione gira nel provider globale: continua anche se cambi pagina.
-    // Mensile ora è 4 blocchi settimanali in parallelo (non più 1 chiamata gigante):
-    // wall-clock simile al settimanale nel caso comune, ma teniamo margine extra
-    // per il caso in cui i 4 blocchi vadano in rate-limit insieme sullo stesso
-    // provider free e debbano ritentare in coda.
+    const faseLabel = fase ? ` · fase ${fase} (sett. ${fase === 1 ? '1-2' : '3-4'})` : ''
+    // Fase mensile: metà settimane per volta → richiesta più corta, meno rischio timeout.
     const result = await gen.run<{
       count?: number
       images_provided?: number
@@ -103,10 +100,10 @@ export default function PianoPage() {
       chunks_failed?: number
       items_scartati?: number
     }>({
-      key: 'piano',
-      label: `Piano editoriale ${periodo}`,
+      key: fase ? `piano-fase-${fase}` : 'piano',
+      label: `Piano editoriale ${periodo}${faseLabel}`,
       url: '/api/generate/plan',
-      body: { cliente_id: clienteId, piattaforme, obiettivo, periodo, quality, media_urls: planAssets.map(a => a.url), ...aiSettings },
+      body: { cliente_id: clienteId, piattaforme, obiettivo, periodo, quality, media_urls: planAssets.map(a => a.url), ...(fase ? { fase } : {}), ...aiSettings },
       href: '/dashboard/calendario',
       estMs: periodo === 'mensile' ? 50000 : 25000,
       timeoutMs: periodo === 'mensile' ? 130000 : 95000,
@@ -125,7 +122,8 @@ export default function PianoPage() {
       const scartatiNote = data?.items_scartati
         ? ` ${data.items_scartati} contenuti generati sono stati scartati per dati non validi.`
         : ''
-      setMsg({ type: 'ok', text: `Piano generato (${data?.count ?? '?'} contenuti). I contenuti sono nel calendario.${imgNote}${chunkNote}${scartatiNote}` })
+      const faseNote = fase ? ` (fase ${fase}: settimane ${fase === 1 ? '1-2' : '3-4'})` : ''
+      setMsg({ type: 'ok', text: `Piano generato${faseNote} (${data?.count ?? '?'} contenuti). I contenuti sono nel calendario.${imgNote}${chunkNote}${scartatiNote}` })
     } else {
       setMsg({ type: 'err', text: result.error || 'Generazione piano fallita' })
     }
@@ -349,6 +347,29 @@ export default function PianoPage() {
           {running ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
           {running ? 'Generazione in corso...' : `Genera piano ${periodo}`}
         </button>
+
+        {/* Mensile in 2 fasi: richieste più corte, meno rischio timeout/rate-limit */}
+        {periodo === 'mensile' && (
+          <div className="mt-3">
+            <p className="text-xs text-gray-500 mb-2 text-center">Oppure genera in 2 fasi (più affidabile se va in timeout):</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => genera(1)}
+                disabled={running || uploadingImages || piattaforme.length === 0}
+                className="btn-secondary py-2.5 justify-center text-sm disabled:opacity-50"
+              >
+                Fase 1 · settimane 1-2
+              </button>
+              <button
+                onClick={() => genera(2)}
+                disabled={running || uploadingImages || piattaforme.length === 0}
+                className="btn-secondary py-2.5 justify-center text-sm disabled:opacity-50"
+              >
+                Fase 2 · settimane 3-4
+              </button>
+            </div>
+          </div>
+        )}
 
         <ConfirmModal
           open={confirmOpen}

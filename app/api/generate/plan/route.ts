@@ -103,8 +103,12 @@ async function insertCalendario(columns: string[], values: unknown[]): Promise<b
 export async function POST(request: Request) {
   try {
     await requireAuth()
-    const { cliente_id, piattaforme, obiettivo, model, openrouter_key, gemini_key, opencode_key, periodo, quality, quality_level, post_quality, qualita, media_urls } = await request.json()
+    const { cliente_id, piattaforme, obiettivo, model, openrouter_key, gemini_key, opencode_key, periodo, quality, quality_level, post_quality, qualita, media_urls, fase } = await request.json()
     const mediaPool: string[] = Array.isArray(media_urls) ? media_urls.filter((u): u is string => typeof u === 'string' && u.length > 0) : []
+    // Mensile in 2 fasi (opzionale): fase 1 = settimane 1-2, fase 2 = settimane 3-4.
+    // Serve a spezzare una richiesta lunga in due più corte (meno rischio timeout).
+    // Senza `fase` genera tutte e 4 le settimane come prima (retrocompatibile).
+    const faseNum = fase === 1 || fase === 2 ? fase : null
 
     if (!piattaforme?.length) {
       return NextResponse.json({ error: 'piattaforme richieste' }, { status: 400 })
@@ -170,7 +174,9 @@ ${buildExtendedOutputSchema(contentQuality)}
       // Mensile: 4 chunk settimanali. Per medium/high riduciamo il targetMax
       // (7 invece di 9) perché lo schema esteso + credito limitato troncherebbe.
       const maxPerWeek = contentQuality === 'soft' ? 9 : 7
-      for (let i = 0; i < 4; i++) {
+      // Fase 1 → settimane 0,1; fase 2 → settimane 2,3; nessuna fase → 0,1,2,3.
+      const settimane = faseNum === 1 ? [0, 1] : faseNum === 2 ? [2, 3] : [0, 1, 2, 3]
+      for (const i of settimane) {
         chunks.push({
           start: fmtDate(addDays(today, i * 7)),
           end: fmtDate(addDays(today, i * 7 + 6)),
