@@ -2,7 +2,7 @@
 
 > Documento per AI agent multipli (Claude CLI, Cursor/Cline, Codex). Lavoriamo come un team unificato.
 
-**Data ultimo aggiornamento**: 2026-07-02 (sessione: visual AI Blotato + AI selector fix + storage dual-mode verificato)
+**Data ultimo aggiornamento**: 2026-07-03 (sessione: fix auth+Ollama critici, upload immagini, blog SEO locale hardened)
 **Progetto**: Social Automation — SaaS social media management per agenzie
 **Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Anthropic/OpenRouter/Gemini/OpenCode)
 **Percorso locale**: `/Users/md/Documents/social_automation_v2`
@@ -57,6 +57,39 @@ Tutto su `main`, tree pulito, `tsc`+`eslint` verdi.
 **TODO agenti v2** (riscrivere sullo stack reale): 4 agenti (weekly-seo, weekly-competitor, weekly-client-report, daily-ads-optimizer) usando `lib/db.ts` `q()` (NON Supabase), schema reale (`attivo`, non `is_active`), `callAI` da `lib/ai.ts`, + entry point: API route `/api/agents/<nome>` protette da secret + scheduler (cron Render `type: cron` o cron-job.org).
 
 **Pending noti**: zero test automatici; `score-content` (calendario) ha feedback locale ma non è nel GenerationBar globale; `BLOTATO_API_KEY` mancante sul deploy (autopublish off).
+
+---
+
+## 🆕 Sessione 2026-07-03 (Claude Code) — fix critici auth+Ollama, upload immagini, blog SEO locale
+
+Tutto pushato su `main` (`b9a9674`, `96b946f`, `8a5d074`), `tsc`+`build`+`lint` verdi ad ogni commit.
+
+### 🔴 Fix critici (bug reali, non stile)
+- **`lib/auth-secret.ts`** (nuovo): unica fonte del secret NextAuth. Prima `middleware.ts` (Edge, `getToken()`) e `lib/auth.ts` (Node, `getServerSession()`) calcolavano il secret con fallback DIVERSI — se `AUTH_SECRET` è presente ma vuoto in env, il middleware finiva con secret `undefined` mentre NextAuth firmava con `'dev-secret-change-in-development'` → **ogni sessione valida veniva rifiutata con "Non autenticato"** su tutte le route protette. Riprodotto e fixato in locale con login via curl.
+- **`lib/ai.ts`**: Ollama passato da endpoint OpenAI-compatible (`/v1/chat/completions`) a **nativo** (`/api/chat`) per poter alzare `num_ctx` a 16384 (default Ollama 4096) — con prompt grandi (blog/piano high-quality: brand+prodotti+standard+schema) il context finiva prima del completamento → JSON troncato/malformato ad ogni generazione. Timeout portato a 5min + errore distinto tra "timeout" e "server spento" (prima un timeout veniva mascherato da "Ollama non raggiungibile", fuorviante).
+- Verificato end-to-end: rigenerato articolo blog high-quality con Ollama locale (`qwen3-vl:8b-instruct`), salvato in DB, status 200 pulito.
+
+### Upload/modifica immagini — manuale, come richiesto (niente hotlink automatico)
+- **`/dashboard/prodotti`**: bottone camera per prodotto → upload immagine dal PC + `PATCH /api/data/prodotti` (nuovo endpoint, whitelist colonne).
+- **`/dashboard/piano`**: drop-zone upload multiplo (fino a 60 foto, batch da 7) prima di generare → `/api/generate/plan` le distribuisce in ordine sui contenuti (1 per post/story/reel, 5 per carosello), ricicla dall'inizio se finiscono (segnalato in UI, non nascosto).
+- **`/dashboard/calendario`**: card "Immagini del post" nel dettaglio — ogni slot (1 per post, fino a 7 per carosello) con campo carica/sostituisci/rimuovi indipendente; thumb di riga cliccabile per la foto principale.
+- **Story sticker link**: `PostPreview.tsx` formato story ora mostra lo sticker link cliccabile reale (icona+dominio, stile IG nativo) invece del vecchio CTA+freccia "swipe up".
+- **Handle social**: `brand.social_handle` (migration 019) — default auto-derivato da `brand_name` (SILKinCOM → `@silkincom.official`), editabile a mano in `/dashboard/brand`.
+
+### Feature: Blog SEO locale (AIM) — `/dashboard/blog`
+Scrittura articoli SEO/GEO con **AI locale (Ollama)**, gratis, pipeline multi-step (keyword→outline→sezioni→FAQ→meta) per compensare modelli piccoli (`lib/blog-pipeline.ts`). Pubblicazione su `/blog` + export HTML/Markdown/JSON per Shopify/CMS terzi (`lib/blog-render.ts`, `components/BlogArticlesList.tsx`).
+
+Review con 2 agenti paralleli (security/tenant + correttezza) → **5 bug reali trovati e fixati**, verificati live:
+- 🔴 **XSS stored**: JSON-LD iniettato via `JSON.stringify` senza escape di `<` → un `</script>` nei campi generati da AI/DB spezzava il tag script. Fix: escape `<`→`<` in `app/blog/[slug]/page.tsx` e `lib/blog-render.ts` (anche nell'HTML esportato per CMS terzi).
+- 🔴 **Cross-tenant**: `/blog` pubblico leggeva TUTTI i clienti senza filtro, con rischio slug-hijack (`unique` è `(cliente_id, slug)`, non solo `slug`). Fix: scoping opzionale via env `BLOG_PUBLIC_CLIENTE_ID` — **da settare su Render** per limitare il blog pubblico al cliente giusto.
+- 🟡 Cover URL non validato (`javascript:`/`data:`) → `safeImageUrl()` accetta solo http(s), usato in entrambe le route blog.
+- 🟡 `INSERT` senza `ON CONFLICT` → rigenerare lo stesso tema crashava (duplicate key su `unique(cliente_id, slug)`). Fix: `ON CONFLICT DO UPDATE`.
+- 🟡 `/api/data/blog` GET/PATCH senza guardia `dbReady()` → 500 sporco in demo/no-DB.
+
+### Chiarito: stato reale "Agenti v2"
+`AGENTS_SCHEDULE.md` (6 agenti: content generator, lead scraper, SEO/GEO, ads optimizer, competitor watcher, client report) è documentazione della **vecchia architettura Supabase** (menziona RLS policies), mai integrata sullo stack reale Neon. Di quei 6, **solo 1 sopravvive**: `lib/agents/prospect-scraper-agent.ts` + `app/api/agents/prospect-scraper/route.ts`, riscritto su Neon dopo che l'originale rompeva la build — ma ritorna ancora **dati finti hardcoded** (commento `// (simulated)`). Gli altri 5: solo documento, zero codice.
+
+I file `daily_content_*.md` / `editorial_plan_28d_*` in root sono output di un run di test del "Content Generator" schedulato (mai collegato a DB/email reali) — committati come riferimento, nessun codice li consuma ancora.
 
 ---
 
@@ -498,11 +531,18 @@ Audit/fix P0 completato il 26/06/2026:
 - [x] **Generazione grafica AI via Blotato**: reel/video/carousel/immagine lifestyle prodotto. `lib/blotato-visual.ts` + `/api/generate/visual` + `/api/generate/visual/status` + UI in calendario.
 - [x] **Storage dual-mode**: locale (disco) vs cloud (Cloudflare R2) automatico. Codice pronto, **mancano 5 env R2 su Render**.
 - [x] **AI Selector completo**: 5 provider (Ollama/Anthropic/Gemini/OpenRouter/OpenCode), badge Consigliato env-aware.
-- [ ] **🔜 Reel + Caroselli SILKinCOM con Claude Design** (PROSSIMA SESSIONE): visual HTML/CSS animati generati da AI, preview iframe, export. Brand SILKinCOM: donna 25-45, luxury accessibile, prodotti Blazer €129 / Jeans €89 / T-shirt bio €39.
-- [ ] **🔴 Env R2 su Render**: `R2_ACCOUNT_ID/ACCESS_KEY_ID/SECRET_ACCESS_KEY/BUCKET/PUBLIC_URL` → immagini permanenti.
+- [x] **Fix critico auth**: secret NextAuth condiviso Node/Edge (`lib/auth-secret.ts`) — sessioni valide non più rifiutate dal middleware.
+- [x] **Fix critico Ollama**: `num_ctx` 4096→16384 via API nativa — JSON non più troncato su generazioni high-quality (blog/piano).
+- [x] **Upload/modifica immagini manuale**: prodotti (`/dashboard/prodotti`), piano (bulk upload + distribuzione), calendario (slot per-contenuto 1-7), sticker link story.
+- [x] **Handle social**: auto-derivato da brand_name + editabile (migration 019).
+- [x] **Blog SEO locale (AIM)**: `/dashboard/blog`, pipeline Ollama multi-step, export CMS, hardened (5 bug fixati: XSS JSON-LD, cross-tenant, cover URL, slug collision, dbReady).
+- [ ] **🔴 `BLOG_PUBLIC_CLIENTE_ID` su Render**: senza, `/blog` pubblico mostra articoli di TUTTI i clienti mischiati (nessun leak di dati privati, solo mix cross-tenant sul blog pubblico). Settare = cliente_id SILKinCOM per deploy mono-brand.
+- [ ] **Dati brand SILKinCOM ancora generici/stale**: `tono_voce`/`hashtag_base`/`target` nel DB non riflettono l'identità reale (Como/seta/heritage, ricercata da silkincom.com in sessione) — verificato che questo produce tono sbagliato e claim inventati nella generazione blog. L'utente ha bloccato l'aggiornamento prodotti (li gestisce lui manualmente con foto proprie) ma NON si è ancora espresso sui soli campi testo del brand — chiedere prima di scrivere.
+- [ ] **🔜 Reel + Caroselli SILKinCOM con Claude Design**: visual HTML/CSS animati generati da AI, preview iframe, export. Ancora da fare.
+- [ ] **🔴 Env R2 su Render**: `R2_ACCOUNT_ID/ACCESS_KEY_ID/SECRET_ACCESS_KEY/BUCKET/PUBLIC_URL` → immagini permanenti (upload attualmente effimero su Render, blocco go-live).
 - [ ] **Pagina Consumi Token**: token disponibili + consumati per generazione e agenti.
-- [ ] **🔴 Object storage immagini** (Cloudflare R2/S3): blocco go-live, upload attualmente effimero su Render.
-- [ ] **Agenti v2 su Neon + cron**: riscrivere i 4 agenti rimossi (weekly-seo, weekly-competitor, weekly-client-report, daily-ads-optimizer) su stack reale `lib/db.ts`+`callAI`, route `/api/agents/<nome>` protette da secret, scheduler cron Render.
+- [ ] **Agenti v2 su Neon + cron**: chiarito stato reale — `AGENTS_SCHEDULE.md` descrive 6 agenti ma è documento della vecchia architettura Supabase (RLS), mai integrata su Neon. Solo `prospect-scraper` sopravvive (riscritto su Neon) ma **ritorna dati finti hardcoded** (`// simulated`) — va reso reale (scraping vero o API LinkedIn/Google Places) prima di vendere lead generation. Gli altri 5 (content generator giornaliero, SEO/GEO, ads optimizer, competitor watcher, client report): solo documentati, zero codice — da scrivere da zero su `lib/db.ts`+`callAI`, route `/api/agents/<nome>` protette da secret, scheduler cron Render.
+- [ ] **Switch generazione manuale/automatico**: richiesto dall'utente, mai costruito. `automation_enabled` (settings) controlla solo la pubblicazione, non la generazione.
 - [ ] **Fix env Render**: `NEXTAUTH_URL`/`NEXT_PUBLIC_SITE_URL` su dominio reale, `ANTHROPIC_API_KEY`, `BLOTATO_API_KEY`, `dry_run=FALSE`.
 - [ ] **API key Blotato**: per abilitare pubblicazione automatica (`blotatoApiKey=false` su Render).
 - [ ] **Multi-lingua**: generazione contenuti in altre lingue
