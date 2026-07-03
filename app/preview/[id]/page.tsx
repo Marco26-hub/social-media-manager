@@ -85,15 +85,17 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
       .then((d: Record<string, unknown> | null) => {
         if (!d || annullato) return
         const s = (v: unknown) => typeof v === 'string' ? v : ''
-        if (s(d.hook)) setHook(s(d.hook))
-        if (s(d.caption)) setCaption(s(d.caption))
-        if (s(d.hashtag)) setHashtag(s(d.hashtag))
-        if (s(d.cta)) setCta(s(d.cta))
-        if (s(d.link_media_1)) setMediaUrl(s(d.link_media_1))
+        // Contenuto REALE trovato → è la fonte di verità: sovrascrive i dati demo,
+        // ANCHE quando un campo è vuoto (es. nessuna foto → mostra placeholder, non
+        // l'immagine demo finta). Prima il ripiego demo restava se il reale era vuoto.
+        setHook(s(d.hook))
+        setCaption(s(d.caption))
+        setHashtag(s(d.hashtag))
+        setCta(s(d.cta))
+        setMediaUrl(s(d.link_media_1))
         if (s(d.brand_name)) setBrandName(s(d.brand_name))
         if (s(d.social_handle)) setSocialHandle(s(d.social_handle))
-        const link = s(d.link_prodotto_finale) || s(d.link_prodotto)
-        if (link) setLinkProdotto(link)
+        setLinkProdotto(s(d.link_prodotto_finale) || s(d.link_prodotto))
       })
       .catch(() => {})
     return () => { annullato = true }
