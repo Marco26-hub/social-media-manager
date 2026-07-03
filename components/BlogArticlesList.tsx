@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { Globe, FileCode, FileText, FileJson, Copy, Upload, Undo2, Check, ExternalLink, Loader2 } from 'lucide-react'
-import { renderHtml, renderMarkdown, renderJson, normalizeArticle } from '@/lib/blog-render'
+import { Globe, FileCode, FileText, FileJson, Copy, Upload, Undo2, Check, ExternalLink, Loader2, Printer } from 'lucide-react'
+import { renderHtml, renderBodyHtml, renderMarkdown, renderJson, normalizeArticle, type BlogArticleData } from '@/lib/blog-render'
 
 type Row = Record<string, unknown> & { id: string; slug: string; h1: string; status: string; url_pubblicato: string | null }
 
@@ -12,6 +12,23 @@ function download(filename: string, content: string, mime: string) {
   a.href = url; a.download = filename
   document.body.appendChild(a); a.click(); a.remove()
   URL.revokeObjectURL(url)
+}
+
+// PDF senza dipendenze: apre l'articolo stilizzato in una finestra e lancia la stampa
+// del browser → l'utente sceglie "Salva come PDF". Ideale per invio al cliente/archivio.
+function printPdf(a: BlogArticleData) {
+  const w = window.open('', '_blank')
+  if (!w) { alert('Consenti i popup per generare il PDF.'); return }
+  const title = a.meta_title || a.h1 || 'Articolo'
+  w.document.write(
+    `<!doctype html><html lang="it"><head><meta charset="utf-8"><title>${title}</title>` +
+    `<style>@page{margin:18mm} body{margin:0}</style></head><body>` +
+    renderBodyHtml(a) +
+    // Aspetta il rendering (immagine cover inclusa) prima di aprire la stampa.
+    `<script>window.onload=function(){setTimeout(function(){window.print()},350)}<\/script>` +
+    `</body></html>`,
+  )
+  w.document.close()
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -89,6 +106,9 @@ export default function BlogArticlesList({ reloadKey }: { reloadKey?: number }) 
                 )}
                 <button onClick={() => download(`${a.slug}.html`, renderHtml(a), 'text/html')} className="btn-secondary text-[11px] py-1 px-2" title="HTML con JSON-LD per Shopify/CMS">
                   <FileCode className="w-3 h-3" /> HTML
+                </button>
+                <button onClick={() => printPdf(a)} className="btn-secondary text-[11px] py-1 px-2" title="Genera PDF (stampa browser → Salva come PDF) per invio al cliente/archivio">
+                  <Printer className="w-3 h-3" /> PDF
                 </button>
                 <button onClick={() => download(`${a.slug}.md`, renderMarkdown(a), 'text/markdown')} className="btn-secondary text-[11px] py-1 px-2" title="Markdown per siti headless">
                   <FileText className="w-3 h-3" /> Markdown
