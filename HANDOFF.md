@@ -2,12 +2,55 @@
 
 > Documento per AI agent multipli (Claude CLI, Cursor/Cline, Codex). Lavoriamo come un team unificato.
 
-**Data ultimo aggiornamento**: 2026-07-03 (sessione: fix auth+Ollama critici, upload immagini, blog SEO locale hardened)
+**Data ultimo aggiornamento**: 2026-07-03 sera (sessione lunga: storage B2, Gemini 2.5, cross-post, ComfyUI, interconnessioni UI + molti fix con OpenCode in parallelo)
 **Progetto**: Social Automation — SaaS social media management per agenzie
-**Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Anthropic/OpenRouter/Gemini/OpenCode)
+**Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Gemini/OpenRouter/Anthropic/OpenCode/Ollama)
 **Percorso locale**: `/Users/md/Documents/social_automation_v2`
 **Repo**: `https://github.com/Marco26-hub/social-media-manager.git`
 **Deploy live**: `https://social-media-manager-zte4.onrender.com` (Render free, service id `srv-d8up0lvavr4c73fjd1k0`)
+
+---
+
+## 🆕 Sessione 2026-07-03 (parte 2, sera) — storage reale, Gemini 2.5, interconnessioni UI, hardening
+
+Working tree pulito, allineato con origin, `tsc`+`build`+`lint` verdi ad ogni commit. **OpenCode ha lavorato in parallelo** sui robustezza-piano (commit `4b1650b`→`d11584f`): timeout, 402 bridge, chunking, retry — tutti revisionati e corretti, integrati via rebase.
+
+### 🟢 STORAGE IMMAGINI PERMANENTE — RISOLTO (era il blocco go-live #1)
+- `lib/storage.ts` generico S3-compatible (non più solo R2). Supporta **bucket PRIVATO via proxy**: `STORAGE_PUBLIC_URL` assente → l'upload ritorna URL al nostro `/api/assets/file/…` che scarica da S3 con le credenziali e streama. Serve per **Backblaze B2 privato** (10GB free, no carta di credito — il bucket PUBBLICO su B2 richiede carta).
+- **Configurato e TESTATO in produzione**: upload+download round-trip byte-identici. `health.r2Storage=true`. Le immagini ora **non spariscono più ai deploy**.
+- Env su Render (già settate dall'utente): `STORAGE_ENDPOINT`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_BUCKET`, `STORAGE_REGION` (bucket privato → niente `STORAGE_PUBLIC_URL`). Fix `Content-Length` esplicito (B2 dà 411 senza).
+
+### AI — provider e qualità
+- **`GEMINI_API_KEY` su Render**: attiva vision gratis (Gemini vede le foto). Testato in prod (descrive dettagli reali della foto). È il modello di default consigliato — l'utente **resta su Gemini** (gratis), Claude solo se vuole premium.
+- **Gemini 2.5 Flash** (65K output, 1M contesto) aggiunto come modello nativo free → **default per piano mensile/settimanale, blog, SEO audit** (il 2.0-flash cappa a 8192 e troncava i JSON grandi). Post brevi restano su 2.0-flash.
+- **Cap output Gemini per-modello** (`lib/ai.ts`): 2.5-* → 65536, 2.0/1.5 → 8192 (fix regressione: OpenCode aveva alzato il budget a 12000/16000 che eccede il limite di 2.0-flash).
+- **Anthropic reso davvero usabile**: model ID reali (`claude-sonnet-5`, `claude-opus-4-8`, `claude-haiku-4-5-20251001` — prima `claude-sonnet-4-6`/`opus-4-7` inesistenti → 404) + vision (callAnthropic ora passa le immagini come blocchi base64).
+- **Routing vision**: con foto caricata usa SOLO modelli vision (evita 404 "no image input"); errore azionabile se nessun vision disponibile.
+- **Robustezza piano (OpenCode)**: timeout 90s (era 30s che abortiva i paid), bridge 402 "fewer max_tokens" (retry con token ridotti), chunking mensile in 4 blocchi paralleli + settimanale medium/high in 2, retry su malformed JSON con item/token dimezzati, insertCalendario con introspection colonne (`information_schema`).
+
+### Nuove feature UI/flusso
+- **Cross-post opt-in** (`generate/content` `also_canali[]`): nella pagina social spunti altri social → lo stesso contenuto è creato anche lì (id `C…-facebook`), ognuno approvabile a parte. Cross-post fallito ora esposto (`cross_post_failed[]`).
+- **Selezione multipla formati** (checkbox + "Genera selezionati N") nella pagina social.
+- **Piano mensile in 2 fasi**: param `fase` (1=sett.1-2, 2=sett.3-4) + 2 bottoni → richieste più corte, meno timeout, tieni la fase 1 se la 2 fallisce.
+- **Foto prodotto → post**: selettore prodotto nella generazione usa le foto già caricate su quel prodotto (`link_img_1..3`) come media, senza ri-upload.
+- **Badge REAL/DEMO nel calendario** (legge `dry_run` cliente) + banner esplicativo. **Tasto "Sincronizza Blotato"** nell'header (invia gli APPROVATO a Blotato).
+- **Blotato API key per-cliente** (`lib/blotato-key.ts`, `getBlotatoKey`): ogni cliente il suo account Blotato, fallback env. Usata in schedule + visual + sync.
+- **Blog pubblico multi-tenant** via dominio (`clienti.blog_domain`, migration 020, `lib/blog-tenant.ts`) — ogni cliente il suo sottodominio, host non mappato → niente articoli (mai "mostra tutti"). Export PDF articolo.
+- **Preview condivisibile**: carica il contenuto reale dal DB (`/api/data/preview` pubblico) invece del localStorage → il link inviato mostra testi+foto veri. Niente più immagine demo finta se il contenuto non ha foto. Bottoni Indietro/Calendario/torna-su.
+- **ComfyUI locale** (immagini AI gratis, `lib/comfy.ts` + `/api/generate/image`): SOLO in locale (come Ollama), richiede COMFY_CHECKPOINT. **Non testato** (ComfyUI non disponibile in sessione).
+- **Eliminazione multipla** contenuti (bulk delete tenant-safe).
+
+### Audit fallback silenziosi (2 tornate)
+7 fallback silenziosi chiusi. Ultima tornata (5): formato non-nativo→template IG (warning), cross-post fallito (esposto), **seo-audit score mancante→0 salvato come reale** (ora `score_mancanti[]`, il più grave), product_id inesistente (warning), correzioni sanitizeItem del piano (contate ed esposte).
+
+### ⚠️ Da testare LIVE (non fatto: quota Gemini free esaurita dai test)
+- Piano **mensile** (e 2 fasi) con Gemini 2.5 Flash
+- **Cross-post** facebook+threads (3 righe DB attese)
+- **ComfyUI** locale (serve il Mac dell'utente con ComfyUI + checkpoint)
+
+### 🔴 Restano per go-live (azione utente, no codice)
+- **`BLOTATO_API_KEY`** (per-cliente in Impostazioni, o env globale) → abilita pubblicazione. Poi tasto Sincronizza + toggle `dry_run`→REAL.
+- Dati brand SILKinCOM aggiornati (fatto). Prodotti: l'utente carica foto reali lui (bottone camera in `/dashboard/prodotti`).
 
 ---
 
