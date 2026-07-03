@@ -60,9 +60,14 @@ Tutto su `main`, tree pulito, `tsc`+`eslint` verdi.
 
 ---
 
-## 🆕 Sessione 2026-07-03 (Claude Code) — fix critici auth+Ollama, upload immagini, blog SEO locale
+## 🆕 Sessione 2026-07-03 (Claude Code) — fix critici auth+Ollama, upload immagini, blog SEO locale, bulk delete, audit fallback
 
-Tutto pushato su `main` (`b9a9674`, `96b946f`, `8a5d074`), `tsc`+`build`+`lint` verdi ad ogni commit.
+Tutto pushato su `main` (`b9a9674`, `96b946f`, `8a5d074`, `f7ebc1a`, `2d4c7cf`, `fee3fde`), `tsc`+`build`+`lint` verdi ad ogni commit.
+
+### Eliminazione multipla + storage generico + audit fallback (fine sessione)
+- **Bulk delete calendario** (`2d4c7cf`): `DELETE /api/data/calendario` accetta `?ids=` o body `{ids:[]}` oltre a `?id=` singolo — tenant-safe (id di altri clienti ignorati + warning), cap 500, log per-contenuto, cleanup token. UI: checkbox per riga + "seleziona tutti" + barra "Elimina selezionati (N)" + modale. Serve a svuotare un piano editoriale generato non voluto. Contratto testato in demo mode (test distruttivo live saltato: DB condiviso prod).
+- **Storage generico S3** (`f7ebc1a`): `lib/storage.ts` non più legato a R2 — env `STORAGE_*` (endpoint/key/bucket/public_url/region) via firma S3, funziona con **Backblaze B2** (10GB free, no carta di credito) oltre a R2. `render.yaml` aggiornato.
+- **Audit fallback silenziosi** (`2d4c7cf`+`fee3fde`): codebase già solido (0 🔴). Fixati: approvazione con scheduling Blotato fallito ora risponde `scheduled:false`+errore (non `ok` secco); blog step FAQ `ok:false` se 0 domande; fetch calendario mostra errore invece di falso "nessun contenuto"; scrape-contacts espone `enrichment_ok:false`; analytics logga errore DB invece di "0 account". Legittimi confermati: demo mode, cascade AI osservabile, prospect-scraper marcato `simulated`.
 
 ### 🔴 Fix critici (bug reali, non stile)
 - **`lib/auth-secret.ts`** (nuovo): unica fonte del secret NextAuth. Prima `middleware.ts` (Edge, `getToken()`) e `lib/auth.ts` (Node, `getServerSession()`) calcolavano il secret con fallback DIVERSI — se `AUTH_SECRET` è presente ma vuoto in env, il middleware finiva con secret `undefined` mentre NextAuth firmava con `'dev-secret-change-in-development'` → **ogni sessione valida veniva rifiutata con "Non autenticato"** su tutte le route protette. Riprodotto e fixato in locale con login via curl.
@@ -536,10 +541,13 @@ Audit/fix P0 completato il 26/06/2026:
 - [x] **Upload/modifica immagini manuale**: prodotti (`/dashboard/prodotti`), piano (bulk upload + distribuzione), calendario (slot per-contenuto 1-7), sticker link story.
 - [x] **Handle social**: auto-derivato da brand_name + editabile (migration 019).
 - [x] **Blog SEO locale (AIM)**: `/dashboard/blog`, pipeline Ollama multi-step, export CMS, hardened (5 bug fixati: XSS JSON-LD, cross-tenant, cover URL, slug collision, dbReady).
+- [x] **Eliminazione multipla contenuti**: bulk delete tenant-safe nel calendario per svuotare piani editoriali generati (checkbox + seleziona tutti + barra azioni).
+- [x] **Storage generico S3-compatible**: `lib/storage.ts` supporta qualsiasi provider (R2/Backblaze B2/no-carta) via env `STORAGE_*`.
+- [x] **Audit fallback silenziosi**: 0 🔴 residui; fixati approvazione-scheduling, blog FAQ ok-flag, fetch calendario, scrape-contacts enrichment, analytics DB error.
 - [ ] **🔴 `BLOG_PUBLIC_CLIENTE_ID` su Render**: senza, `/blog` pubblico mostra articoli di TUTTI i clienti mischiati (nessun leak di dati privati, solo mix cross-tenant sul blog pubblico). Settare = cliente_id SILKinCOM per deploy mono-brand.
 - [x] **Dati brand SILKinCOM aggiornati** (solo testo, no prodotti/immagini): `tono_voce` emozionale→elegante, `target`/`colori_brand`/`hashtag_base`/`cta_base` allineati all'identità reale (Como/seta/heritage/lusso autentico) ricercata da silkincom.com, `social_handle`='silkincom.official' esplicito. Update diretto su `brand` (nessuna migration, solo dati).
 - [ ] **🔜 Reel + Caroselli SILKinCOM con Claude Design**: visual HTML/CSS animati generati da AI, preview iframe, export. Ancora da fare.
-- [ ] **🔴 Env R2 su Render**: `R2_ACCOUNT_ID/ACCESS_KEY_ID/SECRET_ACCESS_KEY/BUCKET/PUBLIC_URL` → immagini permanenti (upload attualmente effimero su Render, blocco go-live).
+- [ ] **🔴 Env storage su Render** (azione utente, no carta di credito): creare bucket **Backblaze B2** (10GB free, solo email) → settare `STORAGE_ENDPOINT` (`https://s3.<region>.backblazeb2.com`), `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_BUCKET`, `STORAGE_PUBLIC_URL`, `STORAGE_REGION`. Senza, upload effimero su Render (blocco go-live). Codice pronto e generico (`lib/storage.ts`).
 - [ ] **Pagina Consumi Token**: token disponibili + consumati per generazione e agenti.
 - [ ] **Agenti v2 su Neon + cron**: chiarito stato reale — `AGENTS_SCHEDULE.md` descrive 6 agenti ma è documento della vecchia architettura Supabase (RLS), mai integrata su Neon. Solo `prospect-scraper` sopravvive (riscritto su Neon) ma **ritorna dati finti hardcoded** (`// simulated`) — va reso reale (scraping vero o API LinkedIn/Google Places) prima di vendere lead generation. Gli altri 5 (content generator giornaliero, SEO/GEO, ads optimizer, competitor watcher, client report): solo documentati, zero codice — da scrivere da zero su `lib/db.ts`+`callAI`, route `/api/agents/<nome>` protette da secret, scheduler cron Render.
 - [ ] **Switch generazione manuale/automatico**: richiesto dall'utente, mai costruito. `automation_enabled` (settings) controlla solo la pubblicazione, non la generazione.
