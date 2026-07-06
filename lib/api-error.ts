@@ -19,5 +19,9 @@ export function apiError(e: unknown): NextResponse {
     return NextResponse.json({ error: 'Richiesta non valida (JSON malformato)' }, { status: 400 })
   }
 
-  return NextResponse.json({ error: msg }, { status: 500 })
+  // Fallback: NON esporre il messaggio grezzo al client (può contenere nomi
+  // colonne/constraint/dettagli driver). Log dettagliato lato server, messaggio
+  // generico al client.
+  console.error('[apiError] errore non gestito:', msg.slice(0, 500))
+  return NextResponse.json({ error: 'Errore interno del server' }, { status: 500 })
 }

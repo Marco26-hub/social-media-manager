@@ -161,15 +161,35 @@ export async function POST(request: Request) {
     try {
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 12000)
-      const res = await fetch(parsed.toString(), {
+      // Redirect MANUALE + rivalidazione host ad ogni hop: evita SSRF via
+      // redirect pubblico→interno (es. verso 169.254.169.254 / rete privata).
+      const fetchInit = {
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; LeadBot/1.0; +https://socialautomation.it)',
           'Accept': 'text/html,application/xhtml+xml',
           'Accept-Language': 'it-IT,it;q=0.9,en;q=0.8',
         },
         signal: controller.signal,
-        redirect: 'follow',
-      })
+        redirect: 'manual' as const,
+      }
+      let currentUrl = parsed.toString()
+      let res: Response
+      let hops = 0
+      while (true) {
+        res = await fetch(currentUrl, fetchInit)
+        const loc = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null
+        if (!loc) break
+        if (hops++ >= 4) {
+          clearTimeout(timer)
+          return NextResponse.json({ error: 'Troppi redirect' }, { status: 502 })
+        }
+        const next = new URL(loc, currentUrl)
+        if (!['http:', 'https:'].includes(next.protocol) || isPrivateHost(next.hostname)) {
+          clearTimeout(timer)
+          return NextResponse.json({ error: 'Redirect verso host non consentito' }, { status: 400 })
+        }
+        currentUrl = next.toString()
+      }
       clearTimeout(timer)
       if (!res.ok) {
         return NextResponse.json({ error: `Sito non raggiungibile: HTTP ${res.status}` }, { status: 502 })

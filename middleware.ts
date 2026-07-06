@@ -3,27 +3,43 @@ import { getToken } from 'next-auth/jwt'
 import { isDemo } from '@/lib/demo'
 import { AUTH_SECRET } from '@/lib/auth-secret'
 
-// Rate limiter in-memory per /api/generate/* (chiamate AI costose).
-// Sliding window per IP. Nota: lo stato è per-istanza; per deploy multi-istanza
-// usare un backend condiviso (Redis/Upstash). Mitigazione base contro token burn.
-const RL_WINDOW_MS = 60_000
-const RL_MAX = 20
-const rlHits = new Map<string, number[]>()
+// Rate limiter in-memory. Sliding window per IP. Nota: lo stato è per-istanza;
+// per deploy multi-istanza usare un backend condiviso (Redis/Upstash).
+// Due finestre: AI costose (/api/generate) e auth (login/register anti brute-force).
+const GEN_WINDOW_MS = 60_000
+const GEN_MAX = 20
+const genHits = new Map<string, number[]>()
 
-function rateLimit(ip: string): { ok: boolean; retryAfter: number } {
+const AUTH_WINDOW_MS = 5 * 60_000
+const AUTH_MAX = 10 // tentativi login/register per IP ogni 5 min
+const authHits = new Map<string, number[]>()
+
+function clientIp(request: NextRequest): string {
+  return request.headers.get('x-forwarded-for')?.split(',')[0].trim()
+    || request.headers.get('x-real-ip') || 'unknown'
+}
+
+function rateLimit(store: Map<string, number[]>, ip: string, windowMs: number, max: number): { ok: boolean; retryAfter: number } {
   const now = Date.now()
-  const since = now - RL_WINDOW_MS
-  const hits = (rlHits.get(ip) || []).filter(t => t > since)
-  if (hits.length >= RL_MAX) {
-    const retryAfter = Math.ceil((hits[0] + RL_WINDOW_MS - now) / 1000)
+  const since = now - windowMs
+  const hits = (store.get(ip) || []).filter(t => t > since)
+  if (hits.length >= max) {
+    const retryAfter = Math.ceil((hits[0] + windowMs - now) / 1000)
     return { ok: false, retryAfter: Math.max(1, retryAfter) }
   }
   hits.push(now)
-  rlHits.set(ip, hits)
-  if (rlHits.size > 5000) { // evita crescita illimitata della mappa
-    for (const [k, v] of rlHits) { if (v.every(t => t <= since)) rlHits.delete(k) }
+  store.set(ip, hits)
+  if (store.size > 5000) { // evita crescita illimitata della mappa
+    for (const [k, v] of store) { if (v.every(t => t <= since)) store.delete(k) }
   }
   return { ok: true, retryAfter: 0 }
+}
+
+function tooMany(retryAfter: number) {
+  return NextResponse.json(
+    { error: 'Troppe richieste. Attendi e riprova.' },
+    { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+  )
 }
 
 export async function middleware(request: NextRequest) {
@@ -31,15 +47,16 @@ export async function middleware(request: NextRequest) {
 
   // Rate limit PRIMA del bypass demo: anche in demo con chiave BYO si bruciano token.
   if (pathname.startsWith('/api/generate')) {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim()
-      || request.headers.get('x-real-ip') || 'unknown'
-    const rl = rateLimit(ip)
-    if (!rl.ok) {
-      return NextResponse.json(
-        { error: 'Troppe richieste. Attendi qualche secondo e riprova.' },
-        { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
-      )
-    }
+    const rl = rateLimit(genHits, clientIp(request), GEN_WINDOW_MS, GEN_MAX)
+    if (!rl.ok) return tooMany(rl.retryAfter)
+  }
+
+  // Anti brute-force / spam su login e registrazione.
+  const isLoginPost = pathname === '/api/auth/callback/credentials' && request.method === 'POST'
+  const isRegisterPost = pathname === '/api/auth/register' && request.method === 'POST'
+  if (isLoginPost || isRegisterPost) {
+    const rl = rateLimit(authHits, clientIp(request), AUTH_WINDOW_MS, AUTH_MAX)
+    if (!rl.ok) return tooMany(rl.retryAfter)
   }
 
   if (isDemo()) return NextResponse.next()
