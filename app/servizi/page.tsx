@@ -176,8 +176,8 @@ export default function ServiziPage() {
               Scrivici su WhatsApp
               <ArrowRight size={18} />
             </a>
-            <a href={waLink('Ciao! Vorrei vedere una demo di Social Automation.')} target="_blank" rel="noopener" className={styles.secondaryButton}>
-              Richiedi una demo
+            <a href="#metodo" className={styles.secondaryButton}>
+              Come funziona
             </a>
           </div>
           <p className={styles.heroReassure}>
