@@ -18,9 +18,9 @@ import { useRuntimeDemo } from '@/lib/demo-client'
 import { CONTENT_QUALITY_OPTIONS, type ContentQuality } from '@/lib/content-quality'
 import { GENERATION_OPTIMIZATION_CYCLE } from '@/lib/production-cycle'
 
-// Cap asset per singolo post/carosello. Nota: alcune piattaforme limitano di più
-// in fase di publish (Instagram carosello 10, X 4) — vedi warning in fondo al form.
-const MAX_POST_ASSETS = 14
+// Cap asset per singolo post/carosello = max carosello Instagram (10).
+// Altre piattaforme limitano di più in publish (X 4) — vedi warning nel form.
+const MAX_POST_ASSETS = 10
 
 type QualitySelection = 'auto' | ContentQuality
 type UploadedAsset = {

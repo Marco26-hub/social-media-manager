@@ -95,7 +95,8 @@ export default function PianoPage() {
     const result = await gen.run<{
       count?: number
       images_provided?: number
-      images_recycled?: boolean
+      images_insufficient?: boolean
+      carousel_underfilled?: boolean
       chunks_total?: number
       chunks_failed?: number
       items_scartati?: number
@@ -113,9 +114,9 @@ export default function PianoPage() {
       const data = result.data
       const imgNote = !data?.images_provided
         ? ' Nessuna immagine caricata: i contenuti sono senza foto, caricale poi dal calendario.'
-        : data.images_recycled
-          ? ` ${data.images_provided} foto caricate sono state riusate a ciclo (ne servivano di più).`
-          : ` ${data.images_provided} foto distribuite sui contenuti.`
+        : data.images_insufficient
+          ? ` ${data.images_provided} foto usate una per contenuto: sono finite prima dei post, gli ultimi restano senza immagine (caricane altre o assegnale dal calendario).`
+          : ` ${data.images_provided} foto distribuite, una per contenuto (carosello 3-10).`
       const chunkNote = data?.chunks_failed
         ? ` ⚠️ ${data.chunks_failed} di ${data.chunks_total} blocchi settimanali non ha generato contenuti (riprova per coprire quei giorni).`
         : ''

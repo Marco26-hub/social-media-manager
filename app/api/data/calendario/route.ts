@@ -7,6 +7,7 @@ import { validateMediaUrls, formatMediaError } from '@/lib/media-validate'
 import { notifyAgency } from '@/lib/notifications'
 import { isDemo } from '@/lib/demo'
 import { demoContenuti } from '@/lib/demo-data'
+import { getTableColumns } from '@/lib/db-schema'
 
 const CALENDARIO_UPDATE_COLUMNS = new Set([
   'data_pubblicazione',
@@ -28,6 +29,9 @@ const CALENDARIO_UPDATE_COLUMNS = new Set([
   'link_media_5',
   'link_media_6',
   'link_media_7',
+  'link_media_8',
+  'link_media_9',
+  'link_media_10',
   'link_prodotto',
   'link_prodotto_finale',
   'status',
@@ -145,6 +149,7 @@ export async function PATCH(request: Request) {
     }
 
     const cid = await requireClienteId()
+    const calendarioColumns = await getTableColumns('calendario')
     const existingContent = await q('SELECT * FROM calendario WHERE id = $1 AND cliente_id = $2', [id, cid])
     if (!existingContent.length) {
       return NextResponse.json({ error: 'contenuto non trovato' }, { status: 404 })
@@ -152,28 +157,38 @@ export async function PATCH(request: Request) {
 
     const fields: string[] = []
     const params: unknown[] = [id, cid]
+    const skippedSchemaFields: string[] = []
     for (const [key, val] of Object.entries(body)) {
       if (!CALENDARIO_UPDATE_COLUMNS.has(key)) continue
+      if (!calendarioColumns.has(key)) {
+        skippedSchemaFields.push(key)
+        continue
+      }
       params.push(val)
       fields.push(`${key} = $${params.length}`)
     }
     if (body.status === 'APPROVATO') {
-      params.push(new Date().toISOString())
-      fields.push(`data_approvazione = $${params.length}`)
+      if (calendarioColumns.has('data_approvazione')) {
+        params.push(new Date().toISOString())
+        fields.push(`data_approvazione = $${params.length}`)
+      }
 
       // Validate media URLs before approving
       const row = { ...(existingContent[0] as Record<string, unknown>), ...body }
-      const mediaUrls = [row.link_media_1, row.link_media_2, row.link_media_3, row.link_media_4, row.link_media_5, row.link_media_6, row.link_media_7]
+      const mediaUrls = [row.link_media_1, row.link_media_2, row.link_media_3, row.link_media_4, row.link_media_5, row.link_media_6, row.link_media_7, row.link_media_8, row.link_media_9, row.link_media_10]
       if (mediaUrls.some(u => u)) {
         const validation = await validateMediaUrls(mediaUrls as (string | null | undefined)[])
-        if (!validation.ok) {
+        if (!validation.ok && calendarioColumns.has('errore_tecnico')) {
           const errMsg = formatMediaError(validation.errors)
           params.push(errMsg)
           fields.push(`errore_tecnico = $${params.length}`)
         }
       }
     }
-    if (!fields.length) return NextResponse.json({ error: 'niente da aggiornare' }, { status: 400 })
+    if (!fields.length) {
+      if (skippedSchemaFields.length) return NextResponse.json({ ok: true, schema_fallback: true, skipped_fields: skippedSchemaFields })
+      return NextResponse.json({ error: 'niente da aggiornare' }, { status: 400 })
+    }
     await q(`UPDATE calendario SET ${fields.join(', ')} WHERE id = $1 AND cliente_id = $2`, params)
 
     // Se approvato, schedula su Blotato
@@ -213,9 +228,9 @@ export async function PATCH(request: Request) {
     // Non nascondere il fallimento di scheduling: l'approvazione è andata (status
     // salvato) ma la pubblicazione NON è stata programmata → il frontend deve avvisare.
     if (schedulingError) {
-      return NextResponse.json({ ok: true, scheduled: false, scheduling_error: schedulingError })
+      return NextResponse.json({ ok: true, scheduled: false, scheduling_error: schedulingError, ...(skippedSchemaFields.length ? { schema_fallback: true, skipped_fields: skippedSchemaFields } : {}) })
     }
-    return NextResponse.json({ ok: true, ...(body.status === 'APPROVATO' ? { scheduled: true } : {}) })
+    return NextResponse.json({ ok: true, ...(body.status === 'APPROVATO' ? { scheduled: true } : {}), ...(skippedSchemaFields.length ? { schema_fallback: true, skipped_fields: skippedSchemaFields } : {}) })
   } catch (e) {
     return apiError(e)
   }

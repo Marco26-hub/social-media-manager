@@ -316,9 +316,9 @@ function CalendarioInner() {
     }
   }
 
-  // Carica/sostituisce la foto in uno specifico slot (link_media_1..7) del contenuto:
+  // Carica/sostituisce la foto in uno specifico slot (link_media_1..10) del contenuto:
   // upload su /api/assets/upload (stesso endpoint del piano) + PATCH calendario.
-  // slot 1 = foto principale (thumb riga + preview), 2..7 = slide carosello.
+  // slot 1 = foto principale (thumb riga + preview), 2..10 = slide carosello.
   async function attachPhoto(c: Contenuto, file: File, slot = 1) {
     if (!clienteId) return
     const col = `link_media_${slot}`
@@ -1152,10 +1152,11 @@ function CalendarioInner() {
               {/* Immagini del post — ogni slot ha il suo campo carica/sostituisci/rimuovi */}
               {(() => {
                 const isCarousel = selected.formato === 'carousel'
-                const slotCount = isCarousel ? 7 : 1
+                const slotCount = isCarousel ? 10 : 1
                 const mediaVals = [
                   selected.link_media_1, selected.link_media_2, selected.link_media_3,
                   selected.link_media_4, selected.link_media_5, selected.link_media_6, selected.link_media_7,
+                  selected.link_media_8, selected.link_media_9, selected.link_media_10,
                 ]
                 // Mostra tutti gli slot pieni + il primo slot vuoto (per aggiungerne uno).
                 const lastFilled = mediaVals.reduce((acc, v, i) => (v ? i : acc), -1)

@@ -65,6 +65,9 @@ export interface Contenuto {
   link_media_5: string | null
   link_media_6: string | null
   link_media_7: string | null
+  link_media_8: string | null
+  link_media_9: string | null
+  link_media_10: string | null
   link_prodotto: string | null
   link_prodotto_finale: string | null
   status: Status

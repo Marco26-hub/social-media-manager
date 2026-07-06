@@ -121,6 +121,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
     hook, caption, hashtag, cta,
     link_media_1: mediaUrl, link_media_2: null, link_media_3: null,
     link_media_4: null, link_media_5: null, link_media_6: null, link_media_7: null,
+    link_media_8: null, link_media_9: null, link_media_10: null,
     nome_prodotto: DEMO_DATA.nome_prodotto, tema: DEMO_DATA.tema,
     obiettivo: null, product_id: null,
     link_prodotto: null, link_prodotto_finale: linkProdotto || null,

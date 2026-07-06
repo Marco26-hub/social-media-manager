@@ -17,6 +17,7 @@ import {
 import { getClientGenerationContext } from '@/lib/client-context'
 import { PRO_COPY_STANDARDS, SEO_GEO_STANDARDS, DIVERSITY_STANDARDS, FUNNEL_STANDARDS } from '@/lib/prompt-standards'
 import { buildGenerationOptimizationCyclePrompt, normalizeProductionCycleStage } from '@/lib/production-cycle'
+import { filterExistingColumnPairs, getTableColumns } from '@/lib/db-schema'
 
 // Standard del piano: composti dalla "bibbia" condivisa (lib/prompt-standards).
 // Forza DIVERSITÀ + funnel strategico + SEO/GEO + copy professionale.
@@ -79,25 +80,15 @@ type Chunk = { start: string; end: string; label: string; targetMin: number; tar
 // aggiunte dopo (audience_segment, kpi_target, ecc.) non erano nella retry list,
 // quindi un DB non ancora migrato le perdeva silenziosamente invece di avvisare.
 // Ora leggiamo UNA volta le colonne vere da information_schema e filtriamo su quelle.
-let calendarioColumnsCache: Set<string> | null = null
-async function getCalendarioColumns(): Promise<Set<string>> {
-  if (calendarioColumnsCache) return calendarioColumnsCache
-  const rows = await q(`SELECT column_name FROM information_schema.columns WHERE table_name = 'calendario'`)
-  calendarioColumnsCache = new Set(rows.map(r => String(r.column_name)))
-  return calendarioColumnsCache
-}
-
 async function insertCalendario(columns: string[], values: unknown[]): Promise<boolean> {
-  const existing = await getCalendarioColumns()
-  const pairs = columns.map((col, i) => [col, values[i]] as const).filter(([col]) => existing.has(col))
-  if (!pairs.length) throw new Error('Nessuna colonna valida per insert su calendario (schema DB inatteso)')
-  const finalColumns = pairs.map(([col]) => col)
-  const finalValues = pairs.map(([, v]) => v)
+  const existing = await getTableColumns('calendario')
+  const { columns: finalColumns, values: finalValues, skipped } = filterExistingColumnPairs(columns, values, existing)
+  if (!finalColumns.length) throw new Error('Nessuna colonna valida per insert su calendario (schema DB inatteso)')
   await q(
     `INSERT INTO calendario (${finalColumns.join(', ')}) VALUES (${finalColumns.map((_, index) => `$${index + 1}`).join(', ')})`,
     finalValues,
   )
-  return pairs.length < columns.length
+  return skipped.length > 0
 }
 
 export async function POST(request: Request) {
@@ -214,6 +205,21 @@ ${buildExtendedOutputSchema(contentQuality)}
       })
     }
 
+    // Ridistribuisci TUTTE le foto caricate sui blocchi effettivi di questo run,
+    // in fette contigue disgiunte: così ogni immagine viene usata una volta sola
+    // (unicità globale garantita) e nessuna foto resta inutilizzata perché lo
+    // slice fisso a 7 la tagliava fuori. Le fette restano ordinate → la vision
+    // di ciascun blocco vede le stesse foto che poi gli vengono assegnate.
+    if (mediaPool.length) {
+      const n = mediaPool.length
+      const k = chunks.length
+      for (let ci = 0; ci < k; ci++) {
+        const from = Math.floor((ci * n) / k)
+        const to = Math.floor(((ci + 1) * n) / k)
+        chunks[ci].images = mediaPool.slice(from, to)
+      }
+    }
+
     const systemPrompt = `Sei un social media manager, creative strategist e SEO/GEO specialist senior (10+ anni, brand premium). Obiettivo: ${obiettivo || 'mix'}. Livello qualità: ${contentQuality}. Crei piani editoriali dove OGNI contenuto è unico, professionale e strategico: hook diversi, angoli ruotati, funnel bilanciato, keyword SEO/GEO sfruttate, zero cliché, grammatica italiana impeccabile. Rispondi con JSON array valido, nessun altro testo. Non inventare prezzi, stock o claim non presenti nei dati.`
 
     async function generateChunk(chunk: Chunk): Promise<{ ok: true; items: Record<string, unknown>[] } | { ok: false; error: string }> {
@@ -321,23 +327,31 @@ Output SOLO JSON array valido:
       return out
     }
 
-    // Media: assegnati per-blocco (le foto che QUEL blocco ha davvero visto),
-    // non più un cursore globale — così l'ordine foto-vista/foto-assegnata
-    // resta coerente con quello che l'AI ha effettivamente descritto.
+    // Media: ogni foto usata UNA volta sola (niente riciclo a ciclo). Un
+    // contenuto singolo (post/reel/story/…) prende 1 foto diversa; il carosello
+    // prende un blocco di CAROUSEL_TARGET foto (min 3, max 10 = limite Instagram).
+    // Quando le foto del blocco finiscono, i contenuti restanti restano senza
+    // foto (null) e lo segnaliamo — mai riusare la stessa immagine di nascosto.
+    const MEDIA_SLOTS = 10
+    const CAROUSEL_TARGET = 5   // dentro il range 3..10
+    const CAROUSEL_MIN = 3
     const chunkMediaCursor = new Map<Chunk, number>()
-    let anyRecycled = false
+    let photosExhausted = false      // finite le foto → contenuti senza immagine
+    let carouselUnderfilled = false  // carosello con meno di 3 foto disponibili
     function nextChunkMediaSlots(chunk: Chunk, formato: string): (string | null)[] {
-      if (!chunk.images.length) return [null, null, null, null, null]
-      const count = formato === 'carousel' ? 5 : 1
+      const empty = Array<string | null>(MEDIA_SLOTS).fill(null)
+      if (!chunk.images.length) return empty
       let cursor = chunkMediaCursor.get(chunk) ?? 0
+      const remaining = chunk.images.length - cursor
+      if (remaining <= 0) { photosExhausted = true; return empty }
+      const count = formato === 'carousel'
+        ? Math.min(CAROUSEL_TARGET, remaining)
+        : 1
+      if (formato === 'carousel' && count < CAROUSEL_MIN) carouselUnderfilled = true
       const picked: string[] = []
-      for (let i = 0; i < count; i++) {
-        if (cursor > 0 && cursor % chunk.images.length === 0) anyRecycled = true
-        picked.push(chunk.images[cursor % chunk.images.length])
-        cursor++
-      }
+      for (let i = 0; i < count; i++) picked.push(chunk.images[cursor++])
       chunkMediaCursor.set(chunk, cursor)
-      return [...picked, ...Array(5 - picked.length).fill(null)]
+      return [...picked, ...Array(MEDIA_SLOTS - picked.length).fill(null)]
     }
 
     const inseriti: { id_contenuto: string; canale: string; data_pubblicazione: string }[] = []
@@ -351,12 +365,13 @@ Output SOLO JSON array valido:
       const item = sanitizeItem(rawItem, chunk)
       const id_contenuto = `C${Date.now().toString(36).toUpperCase()}_${inseriti.length}_${scartati.length}`
       const itemQuality = normalizeContentQuality(item.quality_level) ?? contentQuality
-      const [media1, media2, media3, media4, media5] = nextChunkMediaSlots(chunk, String(item.formato || 'post'))
+      const [media1, media2, media3, media4, media5, media6, media7, media8, media9, media10] = nextChunkMediaSlots(chunk, String(item.formato || 'post'))
       const insertColumns = [
         'cliente_id', 'id_contenuto', 'data_pubblicazione', 'ora_pubblicazione',
         'canale', 'formato', 'obiettivo', 'product_id', 'nome_prodotto',
         'tema', 'hook', 'caption', 'hashtag', 'cta', 'status',
         'link_media_1', 'link_media_2', 'link_media_3', 'link_media_4', 'link_media_5',
+        'link_media_6', 'link_media_7', 'link_media_8', 'link_media_9', 'link_media_10',
         'scenes_json', 'slides_json', 'overlay_text', 'alt_text', 'tags',
         'idea_visual', 'voiceover_script', 'music_mood',
         'quality_level', 'audience_segment', 'funnel_stage', 'angle', 'primary_message',
@@ -384,6 +399,7 @@ Output SOLO JSON array valido:
         item.cta || null,
         'BOZZA',
         media1, media2, media3, media4, media5,
+        media6, media7, media8, media9, media10,
         jsonbParam(pickJson(item, ['scenes', 'scene', 'frames'])),
         jsonbParam(pickJson(item, ['slides', 'immagini'])),
         pickText(item, ['overlay_text', 'overlay_testo']) || null,
@@ -444,7 +460,10 @@ Output SOLO JSON array valido:
       quality_level: contentQuality,
       quality_downgraded: isQualityDowngraded(requestedQuality, contentQuality),
       images_provided: mediaPool.length,
-      images_recycled: anyRecycled,
+      // Foto finite prima dei contenuti → alcuni post restano senza immagine.
+      images_insufficient: photosExhausted,
+      // Almeno un carosello ha meno di 3 foto disponibili (sotto il minimo).
+      carousel_underfilled: carouselUnderfilled,
       ...(schemaFallbackUsed && { schema_fallback: true, warning: 'Eseguire npm run migrate per abilitare tutti i campi qualità e ottimizzazione' }),
     })
   } catch (e) {

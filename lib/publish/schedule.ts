@@ -62,9 +62,11 @@ export async function scheduleOnBlotato(
   // Costruisci il contenuto testuale completo per la piattaforma (hook+caption+cta+hashtag).
   const text = buildPlatformContent(canale, formato, row)
 
-  // Raccogli media disponibili (fino a 7)
-  const mediaUrls = [row.link_media_1, row.link_media_2, row.link_media_3, row.link_media_4, row.link_media_5, row.link_media_6, row.link_media_7]
-    .filter((u): u is string => typeof u === 'string' && u.length > 0)
+  // Raccogli media disponibili (fino a 10 = max carosello Instagram)
+  const mediaUrls = [
+    row.link_media_1, row.link_media_2, row.link_media_3, row.link_media_4, row.link_media_5,
+    row.link_media_6, row.link_media_7, row.link_media_8, row.link_media_9, row.link_media_10,
+  ].filter((u): u is string => typeof u === 'string' && u.length > 0)
 
   // Validate media URLs before sending to Blotato
   if (mediaUrls.length > 0) {

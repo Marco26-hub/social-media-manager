@@ -4,6 +4,7 @@ import { dbReady, q } from '@/lib/db'
 import crypto from 'crypto'
 import { requireAuth, requireClienteAccess } from '@/lib/auth-utils'
 import { getPublicBaseUrl } from '@/lib/base-url'
+import { getTableColumns, mediaSlotColumns, selectExistingColumns } from '@/lib/db-schema'
 
 export async function GET(request: Request) {
   try {
@@ -16,9 +17,11 @@ export async function GET(request: Request) {
 
     if (!token) return NextResponse.json({ error: 'token richiesto' }, { status: 400 })
 
+    const calendarioColumns = await getTableColumns('calendario')
+    const mediaSelect = selectExistingColumns('c', mediaSlotColumns(), calendarioColumns).join(',\n              ')
     const rows = await q(
       `SELECT ct.*, c.canale, c.formato, c.hook, c.caption, c.hashtag, c.cta,
-              c.link_media_1, c.link_media_2, c.link_media_3,
+              ${mediaSelect},
               c.link_prodotto, c.link_prodotto_finale,
               c.data_pubblicazione, c.ora_pubblicazione, c.nome_prodotto, c.tema,
               cl.nome as cliente_nome, cl.slug as cliente_slug,

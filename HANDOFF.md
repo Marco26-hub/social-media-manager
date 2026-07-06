@@ -794,4 +794,59 @@ Task: creare visual animati (reel 9:16 + caroselli 4:5 + post 1:1) per SILKinCOM
 - CTA: "Scopri il look completo su silkincom.com" · Hashtag: #silkincom #modaaccessibile
 - Colori: da definire in sessione (proposta: bianco/nero/oro/sabbia)
 
+---
+
+## 19. Handoff Per Claude Code — Commit + Push Domani (05/07/2026)
+
+Stato lasciato da Codex il 04/07/2026:
+- Branch corrente: `main`.
+- Modifiche finali **non committate** nel working tree.
+- Il tentativo di commit/push da Codex è stato bloccato perché `.git` era in sola lettura nel sandbox e l'escalation è stata rifiutata.
+- L'utente ha chiesto esplicitamente: far committare e pushare a Claude domani, restando su `main`.
+
+### Scope delle modifiche da committare
+- Estensione media slot da `link_media_1..7` a `link_media_1..10`.
+- Migration additiva/idempotente: `db/migrations/021_media_slots_8_10.sql`.
+- Fallback schema silenziosi e robusti tramite nuovo helper `lib/db-schema.ts`.
+- Generazione piano: foto distribuite una sola volta, niente riciclo nascosto; flag `images_insufficient` e `carousel_underfilled`.
+- Route preview/approval/visual/image/calendario tolleranti se il DB non ha ancora `link_media_8..10`.
+- Landing page aggiornata con hero 3D, `HeroScene`, `TiltCard` e animazioni CSS.
+
+### Validazioni già eseguite da Codex
+- `npm run lint` ✅ 0 errori, 7 warning preesistenti non legati a questo giro.
+- `npm run build` ✅ build production ok, 55 pagine generate.
+- `npm run migrate:dry` ✅ vede anche `021_media_slots_8_10.sql`.
+- `npm audit --audit-level=moderate` ✅ 0 vulnerabilità.
+- `bash scripts/smoke-test.sh http://localhost:3000` ✅ 30 PASS / 0 FAIL.
+- `git diff --check` ✅ nessun whitespace issue.
+- `npm run prod:check` eseguito: segnala env locali mancanti (`DATABASE_URL`, auth secret, AI key), atteso fuori produzione.
+
+### Comandi consigliati per Claude
+1. Verificare stato:
+   ```bash
+   git branch --show-current
+   git status --short
+   git diff --stat
+   ```
+2. Restare su `main` come richiesto dall'utente. Se non è su `main`, chiedere conferma prima di cambiare.
+3. Rilanciare almeno:
+   ```bash
+   npm run lint
+   npm run build
+   npm run migrate:dry
+   ```
+4. Commit diretto su `main`:
+   ```bash
+   git add -A
+   git commit -m "stabilizza media e fallback schema"
+   git push origin main
+   ```
+5. Dopo push: controllare GitHub Actions/Render deploy e `/api/system/health`; applicare migration reale solo se `latestMigrationApplied=false`.
+
+### Attenzioni
+- Non fare `git reset`, non scartare modifiche locali.
+- Non reintrodurre Supabase/n8n.
+- Non nascondere errori critici: fallback sì, ma sempre con `schema_fallback`, `warning`, `scheduled:false` o log leggibile.
+- Prima del go-live resta da configurare `BLOTATO_API_KEY`; senza quella autopublish reale non è vendibile end-to-end.
+
 *Fine handoff. Non reintrodurre Supabase o n8n. Mantieni la demo mode funzionante.*

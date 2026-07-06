@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { dbReady, q } from '@/lib/db'
+import { getTableColumns, mediaSlotColumns, selectExistingColumns } from '@/lib/db-schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,10 +17,11 @@ export async function GET(request: Request) {
     const id = (searchParams.get('id') || '').trim()
     if (!id) return NextResponse.json({ error: 'id richiesto' }, { status: 400 })
 
+    const calendarioColumns = await getTableColumns('calendario')
+    const mediaSelect = selectExistingColumns('c', mediaSlotColumns(), calendarioColumns).join(',\n              ')
     const rows = await q(
       `SELECT c.canale, c.formato, c.hook, c.caption, c.hashtag, c.cta, c.nome_prodotto,
-              c.link_media_1, c.link_media_2, c.link_media_3, c.link_media_4,
-              c.link_media_5, c.link_media_6, c.link_media_7,
+              ${mediaSelect},
               c.link_prodotto, c.link_prodotto_finale,
               b.brand_name, b.social_handle, b.sito_url
        FROM calendario c

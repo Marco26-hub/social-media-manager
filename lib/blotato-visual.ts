@@ -46,7 +46,7 @@ type ContentRow = Record<string, unknown>
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
 
 function firstMediaUrl(row: ContentRow): string {
-  for (let i = 1; i <= 7; i++) {
+  for (let i = 1; i <= 10; i++) {
     const u = str(row[`link_media_${i}`])
     if (u) return u
   }

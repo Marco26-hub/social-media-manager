@@ -5,6 +5,7 @@ import { isDemo } from '@/lib/demo'
 import { apiError } from '@/lib/api-error'
 import { blotatoVisualConfigured, getVisualStatus } from '@/lib/blotato-visual'
 import { getBlotatoKey } from '@/lib/blotato-key'
+import { getTableColumns, mediaSlotColumns, selectExistingColumns } from '@/lib/db-schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,9 +30,12 @@ export async function GET(req: Request) {
 
     const cid = await requireClienteAccess(str(url.searchParams.get('cliente_id')) || undefined)
 
+    const calendarioColumns = await getTableColumns('calendario')
+    const mediaColumns = mediaSlotColumns()
+    const mediaSelect = selectExistingColumns('calendario', mediaColumns, calendarioColumns).join(',\n              ')
     const rows = await q(
       `SELECT id, visual_job_id, visual_kind, visual_status, visual_url, visual_image_urls,
-              link_media_1, link_media_2, link_media_3, link_media_4, link_media_5, link_media_6, link_media_7
+              ${mediaSelect}
        FROM calendario WHERE cliente_id = $1 AND id_contenuto = $2 LIMIT 1`,
       [cid, idContenuto],
     ) as Row[]
@@ -62,14 +66,15 @@ export async function GET(req: Request) {
 
     // DONE: raccogli output e riempi gli slot media liberi (senza sovrascrivere foto utente).
     const outputs = st.mediaUrl ? [st.mediaUrl, ...st.imageUrls] : st.imageUrls
-    const slots = [1, 2, 3, 4, 5, 6, 7].map(i => str(row[`link_media_${i}`]))
+    const writableMediaColumns = mediaColumns.filter(column => calendarioColumns.has(column))
+    const slots = writableMediaColumns.map(column => str(row[column]))
     const updates: string[] = []
     const params: unknown[] = []
     let p = 1
     let oi = 0
-    for (let i = 0; i < 7 && oi < outputs.length; i++) {
+    for (let i = 0; i < writableMediaColumns.length && oi < outputs.length; i++) {
       if (!slots[i]) {
-        updates.push(`link_media_${i + 1} = $${p++}`)
+        updates.push(`${writableMediaColumns[i]} = $${p++}`)
         params.push(outputs[oi++])
       }
     }

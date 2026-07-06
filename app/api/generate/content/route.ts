@@ -18,6 +18,7 @@ import {
 import { getClientGenerationContext } from '@/lib/client-context'
 import { normalizeProductionCycleStage } from '@/lib/production-cycle'
 import { PRO_COPY_STANDARDS, SEO_GEO_STANDARDS, pickAngle } from '@/lib/prompt-standards'
+import { filterExistingColumnPairs, getTableColumns } from '@/lib/db-schema'
 
 type PromptSpec = {
   persona: string
@@ -63,7 +64,7 @@ function normalizeAssets(input: unknown, fallbackUrls: unknown): UserAsset[] {
     if (!assets.some(asset => asset.url === url)) assets.push({ url, source: 'url' })
   }
 
-  return assets.slice(0, 7)
+  return assets.slice(0, 10)
 }
 
 function buildAssetContext(assets: UserAsset[]) {
@@ -86,29 +87,15 @@ Regole asset:
 - Non inventare foto, loghi, UGC, claim o prove non contenuti negli asset/dati forniti.`
 }
 
-function isMissingDbColumn(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error || '')
-  return /column .* does not exist|42703/i.test(message)
-}
-
-async function insertCalendario(columns: string[], values: unknown[], retryColumns: string[]): Promise<boolean> {
-  try {
-    await q(
-      `INSERT INTO calendario (${columns.join(', ')}) VALUES (${columns.map((_, index) => `$${index + 1}`).join(', ')})`,
-      values,
-    )
-    return false
-  } catch (error) {
-    if (!isMissingDbColumn(error)) throw error
-    const missingCol = error instanceof Error ? (error.message.match(/column "([^"]+)"/)?.[1] ?? 'unknown') : 'unknown'
-    console.warn(`[insertCalendario] schema fallback: colonna "${missingCol}" mancante, retry con colonne base`)
-    const retryValues = retryColumns.map(column => values[columns.indexOf(column)])
-    await q(
-      `INSERT INTO calendario (${retryColumns.join(', ')}) VALUES (${retryColumns.map((_, index) => `$${index + 1}`).join(', ')})`,
-      retryValues,
-    )
-    return true
-  }
+async function insertCalendario(columns: string[], values: unknown[]): Promise<boolean> {
+  const existing = await getTableColumns('calendario')
+  const { columns: finalColumns, values: finalValues, skipped } = filterExistingColumnPairs(columns, values, existing)
+  if (!finalColumns.length) throw new Error('Nessuna colonna valida per insert su calendario (schema DB inatteso)')
+  await q(
+    `INSERT INTO calendario (${finalColumns.join(', ')}) VALUES (${finalColumns.map((_, index) => `$${index + 1}`).join(', ')})`,
+    finalValues,
+  )
+  return skipped.length > 0
 }
 
 // Standard professionali applicati a OGNI generazione: alzano la qualità da
@@ -585,6 +572,7 @@ export async function POST(request: Request) {
       'canale', 'formato', 'obiettivo', 'tema', 'product_id', 'nome_prodotto',
       'hook', 'caption', 'hashtag', 'cta', 'note', 'status', 'media_type',
       'link_media_1', 'link_media_2', 'link_media_3', 'link_media_4', 'link_media_5', 'link_media_6', 'link_media_7',
+      'link_media_8', 'link_media_9', 'link_media_10',
       'fonte_media', 'consenso_utilizzo',
       'scenes_json', 'slides_json', 'overlay_text', 'alt_text', 'tags', 'thumbnail_url',
       'idea_visual', 'voiceover_script', 'music_mood',
@@ -615,6 +603,9 @@ export async function POST(request: Request) {
       mediaUrls[4] || null,
       mediaUrls[5] || null,
       mediaUrls[6] || null,
+      mediaUrls[7] || null,
+      mediaUrls[8] || null,
+      mediaUrls[9] || null,
       mediaUrls.length ? (userAssets.some(asset => asset.source === 'upload') ? 'upload_cliente' : 'url_cliente') : null,
       mediaUrls.length ? 'SI' : null,
       scenes, slides, overlay || null,
@@ -653,16 +644,7 @@ export async function POST(request: Request) {
       jsonbParam(pickJson(parsed, ['content_checklist', 'checklist'])),
     ]
 
-    const retryColumns = [
-      'cliente_id', 'id_contenuto', 'data_pubblicazione', 'ora_pubblicazione',
-      'canale', 'formato', 'obiettivo', 'tema', 'product_id', 'nome_prodotto',
-      'hook', 'caption', 'hashtag', 'cta', 'note', 'status', 'media_type',
-      'link_media_1', 'link_media_2', 'link_media_3', 'link_media_4', 'link_media_5', 'link_media_6', 'link_media_7',
-      'fonte_media', 'consenso_utilizzo',
-      'scenes_json', 'slides_json', 'overlay_text', 'alt_text', 'tags', 'thumbnail_url',
-      'idea_visual', 'voiceover_script', 'music_mood',
-    ]
-    const schemaFallback = await insertCalendario(insertColumns, insertValues, retryColumns)
+    const schemaFallback = await insertCalendario(insertColumns, insertValues)
 
     // Cross-post: stesso contenuto duplicato sui canali extra scelti (canale index 4).
     const canaleIdx = insertColumns.indexOf('canale')
@@ -674,7 +656,7 @@ export async function POST(request: Request) {
       altValues[idIdx] = `${id_contenuto}-${altCanale}`
       altValues[canaleIdx] = altCanale
       try {
-        await insertCalendario(insertColumns, altValues, retryColumns)
+        await insertCalendario(insertColumns, altValues)
         crossPosted.push(altCanale)
       } catch (e) {
         console.warn(`[content cross-post] fallito su ${altCanale}:`, (e as Error).message.slice(0, 150))

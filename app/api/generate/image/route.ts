@@ -8,6 +8,7 @@ import { apiError } from '@/lib/api-error'
 import { getPublicBaseUrl } from '@/lib/base-url'
 import { isStorageConfigured, uploadToStorage } from '@/lib/storage'
 import { generateImageComfy, sizeForFormato, comfyReachable } from '@/lib/comfy'
+import { getTableColumns, mediaSlotColumns } from '@/lib/db-schema'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -65,7 +66,8 @@ export async function POST(request: Request) {
     }
 
     // Salva nel primo slot media libero (non sovrascrive foto già caricate).
-    const slots = ['link_media_1', 'link_media_2', 'link_media_3', 'link_media_4', 'link_media_5', 'link_media_6', 'link_media_7']
+    const calendarioColumns = await getTableColumns('calendario')
+    const slots = mediaSlotColumns().filter(column => calendarioColumns.has(column))
     const freeSlot = slots.find(s => !str(row[s]))
     if (freeSlot) {
       await q(
