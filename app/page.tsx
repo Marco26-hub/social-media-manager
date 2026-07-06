@@ -145,7 +145,7 @@ export default function LandingPage() {
               Prova il pannello
               <ArrowRight size={18} />
             </Link>
-            <Link href="/servizi" className={styles.secondaryBtn}>
+            <Link href="/servizi#pacchetti" className={styles.secondaryBtn}>
               Pacchetti e prezzi
             </Link>
           </div>
@@ -334,7 +334,7 @@ export default function LandingPage() {
           </div>
           <p className={styles.priceFootnote}>
             Setup iniziale e moduli extra variano per pacchetto.{' '}
-            <Link href="/servizi">Confronta tutti i pacchetti su /servizi</Link>
+            <Link href="/servizi#pacchetti">Confronta tutti i pacchetti su /servizi</Link>
           </p>
         </div>
       </section>
@@ -379,7 +379,7 @@ export default function LandingPage() {
               Prova il pannello
               <ArrowRight size={18} />
             </Link>
-            <Link href="/servizi" className={styles.secondaryBtn} style={{ color: '#fffaf0', borderColor: 'rgba(255,250,240,0.3)', background: 'transparent' }}>
+            <Link href="/servizi#pacchetti" className={styles.secondaryBtn} style={{ color: '#fffaf0', borderColor: 'rgba(255,250,240,0.3)', background: 'transparent' }}>
               Pacchetti e prezzi
             </Link>
           </div>
@@ -395,7 +395,7 @@ export default function LandingPage() {
           </Link>
           <div className={styles.footerLinks}>
             <Link href="/dashboard">Pannello</Link>
-            <Link href="/servizi">Pacchetti e prezzi</Link>
+            <Link href="/servizi#pacchetti">Pacchetti e prezzi</Link>
             <Link href="/login">Accedi</Link>
           </div>
         </div>
