@@ -2,10 +2,20 @@
 // Chiamato quando status → APPROVATO. Supporta tutti i formati.
 
 import { q } from '@/lib/db'
+import { isDemo } from '@/lib/demo'
 import { validateMediaUrls } from '@/lib/media-validate'
 import { getBlotatoKey } from '@/lib/blotato-key'
 
 const BLOTATO_API_BASE = process.env.BLOTATO_API_URL || 'https://backend.blotato.com'
+
+// Kill-switch pubblicazione, DISACCOPPIATO dal demo mode.
+// Permette di girare in produzione reale (registrazione/login/dati veri) SENZA
+// pubblicare davvero sui social finché non si è pronti. Pubblica solo se
+// PUBLISH_ENABLED === 'true'. Demo mode non pubblica mai, comunque.
+export function isPublishingLive(): boolean {
+  if (isDemo()) return false
+  return process.env.PUBLISH_ENABLED === 'true'
+}
 
 type ContentRow = Record<string, unknown>
 
@@ -36,6 +46,14 @@ export async function scheduleOnBlotato(
   clienteId: string,
   row: ContentRow,
 ) {
+  // Guardia pubblicazione: se non live (demo o PUBLISH_ENABLED != true) → dry-run.
+  // Il contenuto resta APPROVATO senza blotato_post_id: verrà pubblicato quando
+  // si abilita PUBLISH_ENABLED e si rilancia la sincronizzazione Blotato.
+  if (!isPublishingLive()) {
+    console.warn('[Blotato] pubblicazione disabilitata (PUBLISH_ENABLED != true o demo) → dry-run, nessun post reale.')
+    return null
+  }
+
   const blotatoKey = await getBlotatoKey(clienteId)
   if (!blotatoKey) {
     console.warn('[Blotato] key non configurata (né per cliente né env)')

@@ -32,6 +32,11 @@ services:
         generateValue: true
       - key: SHOW_LOGIN_HINT
         value: "false"
+      # Pubblicazione social REALE (disaccoppiata dal demo mode). Default OFF:
+      # l'app gira reale (registrazione/login/dati veri) ma NON pubblica sui
+      # social finché non metti PUBLISH_ENABLED=true. Demo mode non pubblica mai.
+      - key: PUBLISH_ENABLED
+        value: "false"
       # Admin reale: impostale per creare l'admin di produzione e DISABILITARE
       # il default 'admin'/'1234567' allo start (scripts/ensure-admin.mjs).
       - key: ADMIN_EMAIL

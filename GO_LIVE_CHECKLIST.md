@@ -43,6 +43,22 @@ Il seed (`011_admin_user.sql`) crea `admin` / `1234567`. **Da neutralizzare.**
       e mette il default `admin` a `status='rejected'` (non può più loggare).
 - [ ] Verifica: login con le nuove credenziali OK; login `admin`/`1234567` → bloccato.
 
+## 3b. 🔴 Demo mode vs pubblicazione (IMPORTANTE)
+
+Due flag SEPARATI (prima erano accoppiati):
+
+| Flag | Effetto |
+|---|---|
+| `NEXT_PUBLIC_DEMO_MODE` | `true` = TUTTO finto (registrazione/login/dati demo). Per andare live: **`false`** (o rimuovi). È `NEXT_PUBLIC_` → richiede rebuild (Manual Deploy → Clear cache). |
+| `PUBLISH_ENABLED` | `true` = pubblica DAVVERO sui social (Blotato). `false`/assente = app reale ma **niente post reali** (dry-run). |
+
+**Andare live in sicurezza:**
+1. `NEXT_PUBLIC_DEMO_MODE=false` → registrazione/vendita reali.
+2. `PUBLISH_ENABLED=false` (o non messa) → NON pubblica ancora: testi tutto senza rischio.
+3. Quando sei pronto a pubblicare per davvero → `PUBLISH_ENABLED=true`.
+
+> Nota: in demo mode non si pubblica comunque mai, qualunque sia `PUBLISH_ENABLED`.
+
 ## 4. 🟡 Piano Render
 
 - [ ] Il piano `free` va in spin-down (cold start ~30-60s): inadatto a clienti paganti.
