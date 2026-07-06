@@ -214,8 +214,8 @@
   margin: 0;
   font-family: "Fraunces", Georgia, serif;
   font-weight: 900;
-  letter-spacing: -0.065em;
-  line-height: 0.92;
+  letter-spacing: -0.055em;
+  line-height: 1.02;
   font-size: clamp(52px, 7vw, 104px);
 }
 
@@ -224,6 +224,8 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  /* padding-block evita che background-clip:text tagli gli ascender su line-height stretto */
+  padding-block: 0.04em;
 }
 
 .heroLead {
