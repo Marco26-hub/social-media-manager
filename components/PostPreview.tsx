@@ -1,7 +1,94 @@
 'use client'
-import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, Play, Link2 } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, Play, Link2, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Contenuto } from '@/lib/types'
 import { resolveHandle } from '@/lib/social-handle'
+
+// Galleria carosello IG-style: swipe orizzontale + frecce cliccabili +
+// contatore "1/N" in alto + dots indicator centrati sotto le azioni.
+// Prima l'utente non capiva ci fossero altre foto (nascoste dallo scroll).
+function CarouselGallery({ imgs, canale }: { imgs: string[]; canale: string }) {
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const [index, setIndex] = useState(0)
+
+  function onScroll() {
+    const el = scrollerRef.current
+    if (!el) return
+    const i = Math.round(el.scrollLeft / el.clientWidth)
+    if (i !== index) setIndex(i)
+  }
+
+  function goTo(i: number) {
+    const el = scrollerRef.current
+    if (!el) return
+    el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
+  }
+
+  return (
+    <>
+      <div
+        ref={scrollerRef}
+        onScroll={onScroll}
+        className="flex h-full overflow-x-auto snap-x snap-mandatory"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {imgs.map((src, i) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={i} src={src} alt="" className="w-full h-full object-cover flex-shrink-0 snap-center" />
+        ))}
+      </div>
+
+      {/* Contatore "1/3" in alto a destra — chiaro subito che il post ha più foto */}
+      <div className="absolute top-2 right-2 bg-black/65 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-sm">
+        {index + 1}/{imgs.length}
+      </div>
+
+      {/* Freccia sinistra (nascosta sulla prima slide) */}
+      {index > 0 && (
+        <button
+          type="button"
+          onClick={() => goTo(index - 1)}
+          aria-label="Foto precedente"
+          className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/85 text-gray-800 flex items-center justify-center shadow-md hover:bg-white transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+      )}
+
+      {/* Freccia destra (nascosta sull'ultima) */}
+      {index < imgs.length - 1 && (
+        <button
+          type="button"
+          onClick={() => goTo(index + 1)}
+          aria-label="Foto successiva"
+          className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-white/85 text-gray-800 flex items-center justify-center shadow-md hover:bg-white transition-colors"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      )}
+
+      {/* Dots in basso centrati (stile IG) */}
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1">
+        {imgs.map((_, i) => (
+          <button
+            key={i}
+            type="button"
+            onClick={() => goTo(i)}
+            aria-label={`Vai a foto ${i + 1}`}
+            className={`transition-all rounded-full ${
+              i === index ? 'w-1.5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/55'
+            }`}
+          />
+        ))}
+      </div>
+
+      {/* Fallback icona canale se non ci sono immagini (mai qui, ma per safety) */}
+      {imgs.length === 0 && (
+        <div className="w-full h-full flex items-center justify-center text-5xl">{CANALE_ICON[canale]}</div>
+      )}
+    </>
+  )
+}
 
 type BrandHandleInfo = { brand_name?: string | null; social_handle?: string | null; sito_url?: string | null } | null
 
@@ -228,20 +315,7 @@ export default function PostPreview({ c, brand }: { c: Contenuto; brand?: BrandH
         {c.formato === 'carousel' ? (() => {
           const imgs = [c.link_media_1, c.link_media_2, c.link_media_3, c.link_media_4, c.link_media_5, c.link_media_6, c.link_media_7].filter(Boolean) as string[]
           if (!imgs.length) return <div className="w-full h-full flex items-center justify-center text-5xl">{CANALE_ICON[c.canale]}</div>
-          return (
-            <>
-              {/* Galleria: le diverse foto del carosello, swipe orizzontale */}
-              <div className="flex h-full overflow-x-auto snap-x snap-mandatory">
-                {imgs.map((src, i) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={i} src={src} alt="" className="w-full h-full object-cover flex-shrink-0 snap-center" />
-                ))}
-              </div>
-              <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
-                {imgs.length} foto
-              </div>
-            </>
-          )
+          return <CarouselGallery imgs={imgs} canale={c.canale} />
         })() : c.link_media_1 ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={c.link_media_1} alt="" className="w-full h-full object-cover" />
