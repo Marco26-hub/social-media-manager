@@ -5,7 +5,7 @@ import { isR2Configured } from '@/lib/storage'
 
 export const dynamic = 'force-dynamic'
 
-const LATEST_REQUIRED_MIGRATION = '023_stripe_payments.sql'
+const LATEST_REQUIRED_MIGRATION = '025_stripe_webhook_events.sql'
 
 function hasEnv(name: string) {
   return Boolean(process.env[name]?.trim())
@@ -92,6 +92,9 @@ export async function GET() {
     openrouter: hasEnv('OPENROUTER_API_KEY'),
     blotatoApiKey: hasEnv('BLOTATO_API_KEY'),
     blotatoWebhookSecret: hasEnv('BLOTATO_WEBHOOK_SECRET'),
+    stripeSecret: hasEnv('STRIPE_SECRET_KEY'),
+    stripeWebhook: hasEnv('STRIPE_WEBHOOK_SECRET'),
+    publishEnabled: process.env.PUBLISH_ENABLED === 'true',
     r2Storage: isR2Configured(),
   }
 
@@ -124,6 +127,9 @@ export async function GET() {
       ...(!checks.r2Storage ? ['Configura storage S3-compatible (STORAGE_ENDPOINT, STORAGE_ACCESS_KEY_ID, STORAGE_SECRET_ACCESS_KEY, STORAGE_BUCKET, STORAGE_PUBLIC_URL): senza, le immagini caricate spariscono a ogni deploy'] : []),
       ...(!checks.blotatoApiKey ? ['Configura BLOTATO_API_KEY prima di vendere pubblicazione automatica'] : []),
       ...(!checks.blotatoWebhookSecret ? ['Configura BLOTATO_WEBHOOK_SECRET per firmare i callback Blotato'] : []),
+      ...(!checks.stripeSecret ? ['Configura STRIPE_SECRET_KEY per checkout/portal pagamenti'] : []),
+      ...(!checks.stripeWebhook ? ['Configura STRIPE_WEBHOOK_SECRET per ricevere eventi Stripe'] : []),
+      ...(!checks.publishEnabled ? ['PUBLISH_ENABLED non è true: Blotato resta in dry-run globale'] : []),
       ...(checks.blotatoApiKey ? ['Verifica pubblicazione APPROVATO → Blotato/webhook'] : []),
     ],
   })

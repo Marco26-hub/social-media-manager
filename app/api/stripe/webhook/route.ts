@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import { dbReady, q, q1 } from '@/lib/db'
-import { verifyStripeWebhookSignature } from '@/lib/stripe'
+import { stripeSecretLivemode, verifyStripeWebhookSignature } from '@/lib/stripe'
 
 export const dynamic = 'force-dynamic'
 
 type StripeObject = Record<string, unknown>
 type StripeEvent = {
+  id?: string
   type?: string
+  livemode?: boolean
   data?: { object?: StripeObject }
 }
 
@@ -79,6 +81,12 @@ async function handleSubscription(obj: StripeObject) {
   const clienteId = await requireStripeClienteId(obj, 'customer.subscription')
   const subscriptionId = str(obj.id)
   const customerId = str(obj.customer)
+  const existing = subscriptionId
+    ? await q1('SELECT cliente_id FROM stripe_subscriptions WHERE stripe_subscription_id = $1 LIMIT 1', [subscriptionId])
+    : null
+  if (existing?.cliente_id && String(existing.cliente_id) !== clienteId) {
+    throw new Error(`Subscription Stripe ${subscriptionId} già associata a un altro cliente`)
+  }
   const meta = metadata(obj)
   const items = obj.items && typeof obj.items === 'object' ? obj.items as { data?: StripeObject[] } : null
   const firstItem = items?.data?.[0]
@@ -96,7 +104,6 @@ async function handleSubscription(obj: StripeObject) {
      )
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,now())
      ON CONFLICT (stripe_subscription_id) DO UPDATE SET
-       cliente_id = excluded.cliente_id,
        stripe_customer_id = excluded.stripe_customer_id,
        status = excluded.status,
        price_id = excluded.price_id,
@@ -134,6 +141,13 @@ async function handleSubscription(obj: StripeObject) {
 
 async function handleInvoice(obj: StripeObject) {
   const clienteId = await requireStripeClienteId(obj, 'invoice')
+  const invoiceId = str(obj.id)
+  const existing = invoiceId
+    ? await q1('SELECT cliente_id FROM pagamenti WHERE stripe_invoice_id = $1 LIMIT 1', [invoiceId])
+    : null
+  if (existing?.cliente_id && String(existing.cliente_id) !== clienteId) {
+    throw new Error(`Fattura Stripe ${invoiceId} già associata a un altro cliente`)
+  }
   const lines = obj.lines && typeof obj.lines === 'object' ? obj.lines as { data?: StripeObject[] } : null
   const period = lines?.data?.[0]?.period && typeof lines.data[0].period === 'object'
     ? lines.data[0].period as StripeObject
@@ -172,7 +186,7 @@ async function handleInvoice(obj: StripeObject) {
        updated_at = now()`,
     [
       clienteId,
-      str(obj.id) || null,
+      invoiceId || null,
       paymentIntent || null,
       str(obj.customer) || null,
       subscriptionId || null,
@@ -191,6 +205,51 @@ async function handleInvoice(obj: StripeObject) {
   )
 }
 
+async function claimWebhookEvent(event: StripeEvent, rawBody: string): Promise<'new' | 'retry' | 'duplicate'> {
+  const eventId = str(event.id)
+  if (!eventId) throw new Error('Evento Stripe senza id')
+  const inserted = await q(
+    `INSERT INTO stripe_webhook_events (event_id, event_type, livemode, raw)
+     VALUES ($1,$2,$3,$4::jsonb)
+     ON CONFLICT (event_id) DO NOTHING
+     RETURNING event_id`,
+    [eventId, event.type || 'unknown', event.livemode === true, rawBody],
+  )
+  if (inserted.length > 0) return 'new'
+
+  const existing = await q1(
+    'SELECT processed_at, processing_error FROM stripe_webhook_events WHERE event_id = $1 LIMIT 1',
+    [eventId],
+  )
+  if (existing?.processed_at || !existing?.processing_error) return 'duplicate'
+
+  await q(
+    `UPDATE stripe_webhook_events
+     SET raw = $2::jsonb, processing_error = NULL, received_at = now()
+     WHERE event_id = $1`,
+    [eventId, rawBody],
+  )
+  return 'retry'
+}
+
+async function markWebhookEventProcessed(eventId: string) {
+  await q(
+    `UPDATE stripe_webhook_events
+     SET processed_at = now(), processing_error = NULL
+     WHERE event_id = $1`,
+    [eventId],
+  )
+}
+
+async function markWebhookEventFailed(eventId: string, error: string) {
+  await q(
+    `UPDATE stripe_webhook_events
+     SET processing_error = $2
+     WHERE event_id = $1`,
+    [eventId, error.slice(0, 1000)],
+  )
+}
+
 export async function POST(request: Request) {
   if (!dbReady()) return NextResponse.json({ error: 'DB non disponibile' }, { status: 503 })
 
@@ -204,18 +263,38 @@ export async function POST(request: Request) {
 
   try {
     const event = JSON.parse(rawBody) as StripeEvent
+    const eventId = str(event.id)
+    const expectedLivemode = stripeSecretLivemode()
+    if (expectedLivemode !== null && typeof event.livemode === 'boolean' && event.livemode !== expectedLivemode) {
+      return NextResponse.json({ error: 'Livemode Stripe non coerente con STRIPE_SECRET_KEY' }, { status: 422 })
+    }
+    const claim = await claimWebhookEvent(event, rawBody)
+    if (claim === 'duplicate') return NextResponse.json({ received: true, duplicate: true, event_id: eventId })
+
     const obj = event.data?.object
-    if (!obj) return NextResponse.json({ received: true, ignored: true })
+    if (!obj) {
+      await markWebhookEventProcessed(eventId)
+      return NextResponse.json({ received: true, ignored: true })
+    }
 
     if (event.type === 'checkout.session.completed') await handleCheckoutCompleted(obj)
     else if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') await handleSubscription(obj)
     else if (event.type === 'invoice.payment_succeeded' || event.type === 'invoice.payment_failed' || event.type === 'invoice.finalized' || event.type === 'invoice.paid') await handleInvoice(obj)
-    else return NextResponse.json({ received: true, ignored: true, event_type: event.type || 'unknown' })
+    else {
+      await markWebhookEventProcessed(eventId)
+      return NextResponse.json({ received: true, ignored: true, event_type: event.type || 'unknown' })
+    }
 
+    await markWebhookEventProcessed(eventId)
     return NextResponse.json({ received: true })
   } catch (e) {
     console.error('[stripe webhook]', e)
     const message = e instanceof Error ? e.message : 'Webhook Stripe fallito'
+    try {
+      const parsed = JSON.parse(rawBody) as StripeEvent
+      const eventId = str(parsed.id)
+      if (eventId) await markWebhookEventFailed(eventId, message)
+    } catch {}
     if (/Cliente non risolto|Cliente .* non trovato/.test(message)) {
       return NextResponse.json({ error: message }, { status: 422 })
     }

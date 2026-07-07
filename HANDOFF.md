@@ -2,7 +2,7 @@
 
 > Documento per AI agent multipli (Claude CLI, Cursor/Cline, Codex). Lavoriamo come un team unificato.
 
-**Data ultimo aggiornamento**: 2026-07-07 sera (Claude CLI: audit go-live 10 scout paralleli, 121/135 blocker confermati, 8 CRITICAL chiusi + effetti visual reel/carosello con preset + roadmap Codex per HIGH residui)
+**Data ultimo aggiornamento**: 2026-07-07 sera (Claude CLI audit + Codex continuation: HIGH publish/Stripe/health chiusi in working tree, build verde)
 **Progetto**: Social Automation — SaaS social media management per agenzie
 **Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Gemini/OpenRouter/Anthropic/OpenCode/Ollama)
 **Percorso locale**: `/Users/md/Documents/social_automation_v2`
@@ -35,6 +35,18 @@ Commit atomici su `main`, build+lint verdi ad ogni step.
 - **Body params**: `generate/content` e `generate/plan` accettano `visual_preset`, `use_trending_effects`, `visual_effects[]` e li persistono in `calendario`.
 - **Nessuna UI ancora** (solo API-side). Default = `premium` se nessun preset è settato.
 
+### ✅ Continuazione Codex — HIGH chiusi in working tree (da committare)
+- **Publish pipeline #1/#2/#3/#5**: `scheduleOnBlotato()` usa lock atomico `publish_lock_id`, rilascia il lock su successo/errore, persiste errori Blotato su `errore_tecnico`/`log_pubblicazioni`, tratta 2xx senza id come errore esplicito e usa fallback id estesi; cross-post ora passa da `lib/social-adapt.ts` per limiti canale e combo incompatibili.
+- **Stripe #6/#7/#8/#9/#10/#11/#12**: aggiunta migration `025_stripe_webhook_events.sql`; webhook idempotente su `event.id` con retry degli eventi falliti; firma Stripe rifiuta replay oltre 300s; upsert subscription/fatture non può cambiare `cliente_id`; date Unix normalizzate; Checkout usa `Idempotency-Key`; REST Stripe ha timeout 10s + retry; webhook verifica coerenza `livemode` vs prefisso `sk_live_/sk_test_`.
+- **Dashboard cliente #28**: `app/api/data/il-mio-piano/route.ts` normalizza `timestamptz` Neon sia come `Date` sia come stringa, quindi rinnovo e ultimo pagamento non spariscono più in UI.
+- **Health #21**: `/api/system/health` espone `checks.stripeSecret`, `checks.stripeWebhook`, `checks.publishEnabled` e richiede come latest migration `025_stripe_webhook_events.sql`.
+- **Validazioni Codex**: `git diff --check` ✅, `npm run lint` ✅ (0 errori, 7 warning storici), `npm run build` ✅, `npm run migrate:dry` ✅ (vede 024 + 025).
+
+### 🔴 HIGH ancora aperti dopo questa continuation
+- **Publish #4 da riverificare**: `resolveBlotatoTarget()` già rifiuta Facebook senza Page e imposta privacy TikTok, ma va verificato contro contratto reale Blotato.
+- **Security #13-#19**, **Health/Monitoring #20/#22/#23/#24**, **AI #25/#26/#27** restano aperti.
+- **Nota working tree**: `app/page.tsx` + `app/home.module.css` contengono modifiche landing/pacchetti di Claude; non mischiarle con commit Stripe/Blotato se si vogliono commit atomici.
+
 ### 🛠️ Task per Codex — HIGH residui go-live (28 blocker)
 
 Priorità dall'audit. Ordinare per business impact + accessibilità dei file.
@@ -47,7 +59,7 @@ Priorità dall'audit. Ordinare per business impact + accessibilità dei file.
 5. **Cross-post per-canale**: `app/api/generate/content/route.ts` copia caption/hashtag verbatim su ogni `alsoCanali`. Tagliare caption a 280 per X, droppare hashtag oltre limite LinkedIn (5-10), short-circuit combo incompatibili (es. IG post→TikTok senza video). Aggiungere `lib/social-adapt.ts` con `adaptForPlatform(row, canale)`.
 
 #### Stripe (7 blocker)
-6. **Idempotency event.id**: migration `025_stripe_events.sql` con `CREATE TABLE stripe_events (event_id text primary key, received_at timestamptz default now())`. In `app/api/stripe/webhook/route.ts` `INSERT ... ON CONFLICT DO NOTHING` come primo step; se 0 righe → return 200 già processato.
+6. **Idempotency event.id**: migration `025_stripe_webhook_events.sql` con tabella `stripe_webhook_events(event_id text primary key, ...)`. In `app/api/stripe/webhook/route.ts` `INSERT ... ON CONFLICT DO NOTHING` come primo step; se già processato → return 200 duplicato.
 7. **Timestamp tolerance webhook**: `lib/stripe.ts::verifyStripeWebhookSignature` — aggiungere `if (Math.abs(nowSeconds() - t) > 300) return false` per rejectare replay attack.
 8. **ON CONFLICT sovrascrive cliente_id**: nella query upsert `stripe_subscriptions` togliere `cliente_id` dalla `SET` list. Un webhook con `metadata.cliente_id` malformato potrebbe cambiare la subscription di un altro tenant.
 9. **`current_period_end`/`paid_at` sempre null**: valori arrivano da Stripe come stringhe unix. Normalizzare con `new Date(v * 1000).toISOString()` prima di persist. `lib/stripe.ts` + `app/api/stripe/webhook/route.ts`. Rompe UI dashboard cliente `il-mio-piano`.
@@ -85,12 +97,20 @@ Priorità dall'audit. Ordinare per business impact + accessibilità dei file.
 - 🟡 `STORAGE_REGION` corretta per B2 (es. `us-west-004`)
 - 🟢 `CRON_SECRET` (per prospect-scraper quando abilitato)
 - 🟢 `SENTRY_DSN` (dopo integrazione #22)
-- 🟢 Migration `024_visual_effects.sql` + `025_stripe_events.sql` da applicare su prod
+- 🟢 Migration `024_visual_effects.sql` + `025_stripe_webhook_events.sql` da applicare su prod
 
 ### 📌 Handoff rapido per Claude/Codex — prossimo passaggio
-- **8 CRITICAL chiusi in questa sessione. Restano 28 HIGH** (elencati sopra numerati 1-28). Ordinare per business impact.
-- **Il DB prod deve ricevere migration 024** (visual effects) prima del prossimo deploy pubblico.
+- **8 CRITICAL chiusi. HIGH chiusi in working tree da Codex**: #1, #2, #3, #5, #6, #7, #8, #9, #10, #11, #12, #21, #28. Restano #4 da verificare e #13-#20/#22-#27 da implementare.
+- **Il DB prod deve ricevere migration 024 + 025** prima del prossimo deploy pubblico.
 - **La UI per il flag effetti virali NON esiste ancora**: aggiungere in `/dashboard/piano` un selector "Stile visual: 🔥 Trending / ✨ Premium / ⚪ Minimal / 📰 Classico" + checkbox "Usa effetti virali del momento" che passa `visual_preset` + `use_trending_effects` a POST `/api/generate/{content,plan}`.
+
+### 🤖 Nota operativa per OpenCode
+- **Prima azione**: rileggere `HANDOFF.md` da questa sezione, poi eseguire `git status --short` e separare commit atomici. Non mischiare landing/copy con Stripe/Blotato.
+- **Commit suggerito 1 — publish/Stripe HIGH**: includere `app/api/data/blotato-sync/route.ts`, `app/api/generate/content/route.ts`, `app/api/stripe/webhook/route.ts`, `app/api/system/health/route.ts`, `app/api/data/il-mio-piano/route.ts`, `lib/publish/schedule.ts`, `lib/stripe.ts`, `lib/social-adapt.ts`, `db/migrations/025_stripe_webhook_events.sql`, `HANDOFF.md`.
+- **Commit suggerito 2 — landing pricing copy**: includere solo `app/page.tsx` + `app/home.module.css` se il cliente conferma la nota visuale cumulativa pacchetti.
+- **Non committare salvo richiesta**: `daily_content_options_2026-07-04.md` e `daily_content_options_2026-07-04_EMAIL_DRAFT.txt` sono output generati/contenuto editoriale, non codice app.
+- **Validazioni minime prima di passare mano**: `git diff --check`, `npm run lint`, `npm run build`, `npm run migrate:dry`; poi smoke manuale `/dashboard/pagamenti`, `/dashboard/il-mio-piano`, `/api/system/health`.
+- **Prossimi HIGH consigliati**: #13 preview token opaco, #14 mask secret settings, #17 preview `slides_json/scenes_json`, #20 health 503/full admin split, #25/#26 retry/validazione AI.
 
 ---
 

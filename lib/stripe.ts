@@ -29,21 +29,69 @@ function appendForm(params: URLSearchParams, key: string, value: unknown) {
   params.append(key, String(value))
 }
 
-async function stripeRequest<T>(path: string, params: URLSearchParams): Promise<T> {
-  const res = await fetch(`${STRIPE_API_BASE}${path}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${stripeKey()}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: params,
-  })
-  const data = await res.json().catch(() => null) as { error?: { message?: string } } | T | null
-  if (!res.ok) {
-    const msg = data && typeof data === 'object' && 'error' in data ? data.error?.message : null
-    throw new Error(msg || `Stripe error ${res.status}`)
+type StripeRequestOptions = {
+  idempotencyKey?: string
+  attempts?: number
+}
+
+class StripeHttpError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
   }
-  return data as T
+}
+
+function wait(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function stripeRequest<T>(
+  path: string,
+  params: URLSearchParams,
+  options: StripeRequestOptions = {},
+): Promise<T> {
+  const attempts = Math.max(1, options.attempts || 2)
+  let lastError: Error | null = null
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000)
+    try {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${stripeKey()}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }
+      if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey
+
+      const res = await fetch(`${STRIPE_API_BASE}${path}`, {
+        method: 'POST',
+        headers,
+        body: params,
+        signal: controller.signal,
+      })
+      const data = await res.json().catch(() => null) as { error?: { message?: string } } | T | null
+      if (!res.ok) {
+        const msg = data && typeof data === 'object' && 'error' in data ? data.error?.message : null
+        const error = new StripeHttpError(msg || `Stripe error ${res.status}`, res.status)
+        if ((res.status === 429 || res.status >= 500) && attempt < attempts) {
+          lastError = error
+          await wait(250 * attempt)
+          continue
+        }
+        throw error
+      }
+      return data as T
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Stripe request failed'
+      lastError = new Error(message === 'This operation was aborted' ? 'Stripe timeout dopo 10s' : message)
+      if (error instanceof StripeHttpError && error.status < 500 && error.status !== 429) throw error
+      if (attempt >= attempts) throw lastError
+      await wait(250 * attempt)
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  throw lastError || new Error('Stripe request failed')
 }
 
 export function euroStringToCents(value: string): number {
@@ -85,7 +133,13 @@ export async function createStripeCheckoutSession(args: {
   appendForm(params, 'line_items[0][price_data][product_data][metadata][cliente_id]', args.clienteId)
   appendForm(params, 'line_items[0][price_data][product_data][metadata][pacchetto_slug]', args.pacchettoSlug)
 
-  return stripeRequest<StripeCheckoutSession>('/checkout/sessions', params)
+  const hourBucket = new Date().toISOString().slice(0, 13)
+  const idempotencyKey = crypto
+    .createHash('sha256')
+    .update(`${args.clienteId}:${hourBucket}`)
+    .digest('hex')
+
+  return stripeRequest<StripeCheckoutSession>('/checkout/sessions', params, { idempotencyKey })
 }
 
 export async function createStripePortalSession(args: {
@@ -96,6 +150,14 @@ export async function createStripePortalSession(args: {
   appendForm(params, 'customer', args.stripeCustomerId)
   appendForm(params, 'return_url', args.returnUrl)
   return stripeRequest<StripePortalSession>('/billing_portal/sessions', params)
+}
+
+export function stripeSecretLivemode(): boolean | null {
+  const key = process.env.STRIPE_SECRET_KEY?.trim()
+  if (!key) return null
+  if (key.startsWith('sk_live_')) return true
+  if (key.startsWith('sk_test_')) return false
+  return null
 }
 
 export function verifyStripeWebhookSignature(rawBody: string, signatureHeader: string | null): boolean {
@@ -112,6 +174,10 @@ export function verifyStripeWebhookSignature(rawBody: string, signatureHeader: s
   const timestamp = parts.t
   const signature = parts.v1
   if (!timestamp || !signature) return false
+  const timestampSeconds = Number(timestamp)
+  if (!Number.isFinite(timestampSeconds)) return false
+  const nowSeconds = Math.floor(Date.now() / 1000)
+  if (Math.abs(nowSeconds - timestampSeconds) > 300) return false
 
   const payload = `${timestamp}.${rawBody}`
   const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex')

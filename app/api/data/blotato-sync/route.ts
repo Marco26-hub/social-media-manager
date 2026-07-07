@@ -92,11 +92,37 @@ export async function POST() {
       else if (outcome.status === 'dry_run') dryRun++
       else skipped++
     } catch (e) {
+      const msg = (e as Error).message?.slice(0, 500) || 'errore sconosciuto'
       errors.push({
         id_contenuto: String(row.id_contenuto ?? row.id ?? '?'),
         canale: String(row.canale ?? '?'),
-        error: (e as Error).message?.slice(0, 200) || 'errore sconosciuto',
+        error: msg.slice(0, 200),
       })
+      // Persisti l'errore in DB così non è solo nel response del sync manuale:
+      // errore_tecnico ripulisce lo storico e log_pubblicazioni conserva l'audit
+      // per il debug. Prima l'errore si perdeva appena il tab veniva chiuso.
+      if (row.id) {
+        try {
+          await q(
+            `UPDATE calendario
+               SET errore_tecnico = $1, blotato_status = 'failed', blotato_sync_at = now(), publish_lock_id = NULL
+             WHERE id = $2 AND cliente_id = $3`,
+            [msg, row.id, clienteId],
+          )
+        } catch (persistErr) {
+          console.warn('[Blotato sync] errore persist fallito (schema non migrato?):', (persistErr as Error).message.slice(0, 120))
+        }
+        try {
+          await q(
+            `INSERT INTO log_pubblicazioni (cliente_id, id_contenuto, canale, formato, status_finale, errore)
+             VALUES ($1, $2, $3, $4, 'ERRORE', $5)`,
+            [clienteId, String(row.id_contenuto ?? row.id ?? ''), String(row.canale ?? ''), String(row.formato ?? ''), msg],
+          )
+        } catch (logErr) {
+          // Tabella log_pubblicazioni potrebbe non esistere ancora: non abortire.
+          console.warn('[Blotato sync] log_pubblicazioni insert fallito:', (logErr as Error).message.slice(0, 120))
+        }
+      }
     }
   }
 

@@ -1,6 +1,7 @@
 // Publish Bridge: invia contenuto a Blotato per pubblicazione social
 // Chiamato quando status → APPROVATO. Supporta tutti i formati.
 
+import { randomUUID } from 'node:crypto'
 import { q } from '@/lib/db'
 import { isDemo } from '@/lib/demo'
 import { validateMediaUrls } from '@/lib/media-validate'
@@ -146,6 +147,28 @@ export async function scheduleOnBlotato(
 
   const scheduledTime = toIso(row.data_pubblicazione, row.ora_pubblicazione)
 
+  // Lock di pubblicazione atomico: prima di POST /v2/posts marchiamo la riga con
+  // publish_lock_id. Se un altro processo l'ha già lockata (retry concorrente,
+  // click multiplo sul tasto Sincronizza) l'UPDATE non trova la riga e saltiamo.
+  // Elimina i post duplicati su Blotato.
+  const rowId = row.id ? String(row.id) : ''
+  let lockId: string | null = null
+  if (rowId) {
+    lockId = randomUUID()
+    const locked = await q(
+      `UPDATE calendario
+         SET publish_lock_id = $1, updated_at = now()
+       WHERE id = $2 AND cliente_id = $3 AND publish_lock_id IS NULL AND blotato_post_id IS NULL
+       RETURNING id`,
+      [lockId, rowId, clienteId],
+    )
+    if (!locked.length) {
+      console.warn(`[Blotato] publish lock non acquisito per ${rowId}: post già in fly o completato.`)
+      return { status: 'skipped', reason: 'Publish lock non acquisito (post già in fly).' }
+    }
+  }
+
+  try {
   // Payload contratto Blotato v2 (POST /v2/posts): post{ accountId, target, content } + scheduledTime.
   // Campi confermati dallo schema MCP blotato_create_post: accountId, platform, text, mediaUrls, scheduledTime.
   const payload: Record<string, unknown> = {
@@ -179,11 +202,24 @@ export async function scheduleOnBlotato(
   }
 
   const result = await res.json()
-  const blotatoId = result.id || result.postSubmissionId || result.submissionId || result.scheduled_id
+  // Blotato in versioni diverse restituisce l'id in campi diversi. Allarghiamo il
+  // fallback su tutte le forme viste (postSubmissionId, submissionId, scheduled_id,
+  // data.id, post.id, item.id). Se davvero manca sempre → throw esplicito invece
+  // di skipped silenzioso: il contratto è rotto e va investigato subito.
+  const asStr = (v: unknown) => (typeof v === 'string' && v) || (typeof v === 'number' ? String(v) : '')
+  const data = (result && typeof result === 'object' ? (result as Record<string, unknown>) : {}) as Record<string, unknown>
+  const nested = (data.data || data.post || data.item || {}) as Record<string, unknown>
+  const blotatoId = asStr(data.id)
+    || asStr(data.postSubmissionId)
+    || asStr(data.submissionId)
+    || asStr(data.scheduled_id)
+    || asStr(data.postId)
+    || asStr(nested.id)
+    || asStr(nested.postId)
+    || asStr(nested.submissionId)
 
   if (!blotatoId) {
-    console.warn('[Blotato] risposta senza id post — non confermato')
-    return { status: 'skipped', reason: 'Blotato non ha restituito un id post' }
+    throw new Error(`Blotato 2xx senza id post: contratto rotto. Body: ${JSON.stringify(result).slice(0, 200)}`)
   }
 
   // Aggiorna status locale. Persiste anche l'accountId risolto se la riga non
@@ -192,14 +228,16 @@ export async function scheduleOnBlotato(
     if (!manualAccountId && accountId) {
       await q(
         `UPDATE calendario
-         SET blotato_post_id = $1, blotato_status = 'scheduled', blotato_scheduled_at = $2, blotato_sync_at = now(), platform_account_id = $5
+         SET blotato_post_id = $1, blotato_status = 'scheduled', blotato_scheduled_at = $2,
+             blotato_sync_at = now(), publish_lock_id = NULL, errore_tecnico = NULL, platform_account_id = $5
          WHERE id = $3 AND cliente_id = $4`,
         [String(blotatoId), scheduledTime, row.id, clienteId, accountId],
       )
     } else {
       await q(
         `UPDATE calendario
-         SET blotato_post_id = $1, blotato_status = 'scheduled', blotato_scheduled_at = $2, blotato_sync_at = now()
+         SET blotato_post_id = $1, blotato_status = 'scheduled', blotato_scheduled_at = $2,
+             blotato_sync_at = now(), publish_lock_id = NULL, errore_tecnico = NULL
          WHERE id = $3 AND cliente_id = $4`,
         [String(blotatoId), scheduledTime, row.id, clienteId],
       )
@@ -207,6 +245,23 @@ export async function scheduleOnBlotato(
   }
 
   return { status: 'scheduled', blotatoId: String(blotatoId) }
+  } catch (error) {
+    if (rowId && lockId) {
+      const message = error instanceof Error ? error.message : 'Errore Blotato sconosciuto'
+      try {
+        await q(
+          `UPDATE calendario
+           SET publish_lock_id = NULL, blotato_status = 'failed',
+               errore_tecnico = $1, blotato_sync_at = now(), updated_at = now()
+           WHERE id = $2 AND cliente_id = $3 AND publish_lock_id = $4`,
+          [`Blotato: ${message.slice(0, 500)}`, rowId, clienteId, lockId],
+        )
+      } catch (persistError) {
+        console.warn('[Blotato] rilascio publish_lock fallito:', (persistError as Error).message.slice(0, 160))
+      }
+    }
+    throw error
+  }
 }
 
 function buildPlatformContent(canale: string, formato: string, row: ContentRow): string {

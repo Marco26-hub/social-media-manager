@@ -19,6 +19,7 @@ import { getClientGenerationContext } from '@/lib/client-context'
 import { normalizeProductionCycleStage } from '@/lib/production-cycle'
 import { PRO_COPY_STANDARDS, SEO_GEO_STANDARDS, pickAngle } from '@/lib/prompt-standards'
 import { filterExistingColumnPairs, getTableColumns } from '@/lib/db-schema'
+import { adaptRowForPlatform } from '@/lib/social-adapt'
 
 type PromptSpec = {
   persona: string
@@ -653,15 +654,36 @@ export async function POST(request: Request) {
 
     const schemaFallback = await insertCalendario(insertColumns, insertValues)
 
-    // Cross-post: stesso contenuto duplicato sui canali extra scelti (canale index 4).
+    // Cross-post: stesso contenuto duplicato sui canali extra scelti.
+    // Ogni canale destinazione riceve caption/hashtag/hook ADATTATI (troncati a
+    // limite piattaforma, hashtag ridotti sotto la soglia anti-spam). Combinazioni
+    // incompatibili (es. YouTube Shorts con sorgente post foto) sono bloccate con
+    // reason esplicita — l'utente vede in warnings perché il cross-post è saltato.
     const canaleIdx = insertColumns.indexOf('canale')
     const idIdx = insertColumns.indexOf('id_contenuto')
+    const hookIdx = insertColumns.indexOf('hook')
+    const captionIdx = insertColumns.indexOf('caption')
+    const hashtagIdx = insertColumns.indexOf('hashtag')
     const crossPosted: string[] = []
     const crossFailed: string[] = []
     for (const altCanale of alsoCanali) {
+      // Costruisci una vista row-like dei valori per far girare l'adapter.
+      const srcRow: Record<string, unknown> = {}
+      insertColumns.forEach((c, i) => { srcRow[c] = insertValues[i] })
+      const adapt = adaptRowForPlatform(srcRow, altCanale)
+      if (!adapt.ok) {
+        warnings.push(`Cross-post ${altCanale}: ${adapt.reason}`)
+        crossFailed.push(altCanale)
+        continue
+      }
+      if (adapt.warnings.length) warnings.push(...adapt.warnings.map(w => `[${altCanale}] ${w}`))
+
       const altValues = [...insertValues]
       altValues[idIdx] = `${id_contenuto}-${altCanale}`
       altValues[canaleIdx] = altCanale
+      if (hookIdx >= 0) altValues[hookIdx] = adapt.row.hook ?? altValues[hookIdx]
+      if (captionIdx >= 0) altValues[captionIdx] = adapt.row.caption ?? altValues[captionIdx]
+      if (hashtagIdx >= 0) altValues[hashtagIdx] = adapt.row.hashtag ?? altValues[hashtagIdx]
       try {
         await insertCalendario(insertColumns, altValues)
         crossPosted.push(altCanale)

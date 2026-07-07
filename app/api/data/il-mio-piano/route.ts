@@ -55,6 +55,12 @@ function toInt(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback
 }
 
+function isoOrNull(value: unknown): string | null {
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'string' && value.trim()) return value
+  return null
+}
+
 function buildPayload(cliente: ClienteRow, usati: number, pagamenti?: PaymentSnapshot) {
   const piano = typeof cliente.piano === 'string' ? cliente.piano : 'free'
   const inclusi = toInt(cliente.contenuti_mese, 0)
@@ -139,7 +145,7 @@ async function loadPaymentSnapshot(clienteId: string): Promise<PaymentSnapshot> 
       stripe_customer_id: typeof row.stripe_customer_id === 'string' ? row.stripe_customer_id : null,
       stripe_subscription_id: typeof row.stripe_subscription_id === 'string' ? row.stripe_subscription_id : null,
       subscription_status: typeof row.subscription_status === 'string' ? row.subscription_status : null,
-      current_period_end: typeof row.current_period_end === 'string' ? row.current_period_end : null,
+      current_period_end: isoOrNull(row.current_period_end),
       cancel_at_period_end: row.cancel_at_period_end === true,
       ultimo_pagamento: row.last_payment_status ? {
         status: typeof row.last_payment_status === 'string' ? row.last_payment_status : null,
@@ -147,7 +153,7 @@ async function loadPaymentSnapshot(clienteId: string): Promise<PaymentSnapshot> 
         currency: typeof row.currency === 'string' ? row.currency : 'eur',
         hosted_invoice_url: typeof row.hosted_invoice_url === 'string' ? row.hosted_invoice_url : null,
         invoice_pdf: typeof row.invoice_pdf === 'string' ? row.invoice_pdf : null,
-        paid_at: typeof row.paid_at === 'string' ? row.paid_at : null,
+        paid_at: isoOrNull(row.paid_at),
       } : null,
     }
   } catch (error) {
