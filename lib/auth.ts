@@ -20,6 +20,13 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
         if (!dbReady()) {
+          // Fail-closed in produzione: se DATABASE_URL manca in prod NON promuovere
+          // chiunque a super_admin. La modalità demo con login libero è consentita
+          // solo se il flag NEXT_PUBLIC_DEMO_MODE è esplicito o non siamo in prod.
+          if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_DEMO_MODE !== 'true') {
+            console.error('[auth] DATABASE_URL missing in production — refuse login (fail-closed)')
+            return null
+          }
           return { id: 'demo-user', email: credentials.email, name: 'Admin Demo', ruolo: 'super_admin' }
         }
         try {
