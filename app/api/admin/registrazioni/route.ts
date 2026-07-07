@@ -5,17 +5,23 @@ import { requireAdmin } from '@/lib/auth-utils'
 import { isDemo } from '@/lib/demo'
 
 const PACCHETTO_LABEL: Record<string, string> = {
-  starter: 'Starter', presenza: 'Presenza', crescita: 'Crescita', ecommerce: 'E-commerce', dominio: 'Dominio',
+  starter: 'Starter', presenza: 'Presenza', slancio: 'Slancio', crescita: 'Crescita', ecommerce: 'E-commerce', dominio: 'Dominio',
 }
 
 // Mappa pacchetto di vendita → piano DB (enum free/pro/agency/enterprise) + contenuti/mese.
 const PACCHETTO_PIANO: Record<string, { piano: string; contenuti: number }> = {
   starter:   { piano: 'pro',        contenuti: 8 },
   presenza:  { piano: 'pro',        contenuti: 12 },
+  slancio:   { piano: 'agency',     contenuti: 16 },
   crescita:  { piano: 'agency',     contenuti: 20 },
   ecommerce: { piano: 'agency',     contenuti: 30 },
   dominio:   { piano: 'enterprise', contenuti: 50 },
 }
+
+// Fallback pacchetto sconosciuto: NON regalare 30 contenuti (E-commerce) a chi
+// arriva con uno slug ignoto o vuoto. Ripiegare sul minimo (Starter) → l'admin
+// vede subito la discrepanza e può correggere a mano dopo l'attivazione.
+const PACCHETTO_FALLBACK = { piano: 'pro', contenuti: 8 }
 
 function slugify(value: string): string {
   return value
@@ -86,7 +92,7 @@ export async function PATCH(request: Request) {
       // Suffisso breve per evitare collisioni sullo slug unique.
       const slug = `${base}-${prof.id.slice(0, 6)}`
       const pkgLabel = prof.pacchetto ? (PACCHETTO_LABEL[prof.pacchetto] || prof.pacchetto) : '—'
-      const pkgMap = (prof.pacchetto && PACCHETTO_PIANO[prof.pacchetto]) || { piano: 'pro', contenuti: 30 }
+      const pkgMap = (prof.pacchetto && PACCHETTO_PIANO[prof.pacchetto]) || PACCHETTO_FALLBACK
       const cli = await q1(
         `INSERT INTO clienti (nome, slug, email, telefono, piano, contenuti_mese, note)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
