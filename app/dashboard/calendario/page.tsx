@@ -600,10 +600,16 @@ function CalendarioInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cliente_id: clienteId, contenuto_id: c.id_contenuto }),
       })
-      if (!res.ok) throw new Error('Errore generazione link')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Errore generazione link (HTTP ${res.status})`)
+      }
       const data = await res.json()
       setApprovalUrl(data.url as string)
-    } catch (e) { console.error('Approval link error:', e) }
+    } catch (e) {
+      // NIENTE fallback muto: l'utente ha cliccato "genera link" e non vede nulla.
+      setSyncMsg({ type: 'err', text: `Link approvazione non generato: ${(e as Error).message}` })
+    }
     setSendingToken(null)
   }
 
@@ -615,13 +621,21 @@ function CalendarioInner() {
       return
     }
     try {
-      await fetch('/api/data/calendario', {
+      const res = await fetch('/api/data/calendario', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: c.id, data_pubblicazione: newDate }),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `spostamento non salvato (HTTP ${res.status})`)
+      }
       setContenuti(prev => prev.map(x => x.id === c.id ? { ...x, data_pubblicazione: newDate } : x))
-    } catch (e) { console.error('Drag drop PATCH failed', e) }
+    } catch (e) {
+      // NIENTE fallback muto: senza questo l'utente trascina, il card "resta" sulla
+      // nuova data in UI ma il DB ha la data vecchia -> disallineamento silenzioso.
+      setSyncMsg({ type: 'err', text: `Spostamento non salvato (riprova): ${(e as Error).message}` })
+    }
   }
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
