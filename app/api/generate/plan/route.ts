@@ -94,7 +94,7 @@ async function insertCalendario(columns: string[], values: unknown[]): Promise<b
 export async function POST(request: Request) {
   try {
     await requireAuth()
-    const { cliente_id, piattaforme, obiettivo, model, openrouter_key, gemini_key, opencode_key, periodo, quality, quality_level, post_quality, qualita, media_urls, fase } = await request.json()
+    const { cliente_id, piattaforme, obiettivo, model, openrouter_key, gemini_key, opencode_key, periodo, quality, quality_level, post_quality, qualita, media_urls, fase, visual_preset, use_trending_effects, visual_effects } = await request.json()
     const mediaPool: string[] = Array.isArray(media_urls) ? media_urls.filter((u): u is string => typeof u === 'string' && u.length > 0) : []
     // Mensile in 2 fasi (opzionale): fase 1 = settimane 1-2, fase 2 = settimane 3-4.
     // Serve a spezzare una richiesta lunga in due più corte (meno rischio timeout).
@@ -375,6 +375,7 @@ Output SOLO JSON array valido:
         'canale', 'formato', 'obiettivo', 'product_id', 'nome_prodotto',
         'tema', 'hook', 'caption', 'hashtag', 'cta', 'status',
         'link_prodotto', 'link_prodotto_finale',
+        'visual_preset', 'use_trending_effects', 'visual_effects',
         'link_media_1', 'link_media_2', 'link_media_3', 'link_media_4', 'link_media_5',
         'link_media_6', 'link_media_7', 'link_media_8', 'link_media_9', 'link_media_10',
         'scenes_json', 'slides_json', 'overlay_text', 'alt_text', 'tags',
@@ -405,6 +406,9 @@ Output SOLO JSON array valido:
         'BOZZA',
         itemLinkProdotto,
         itemLinkProdotto,
+        typeof visual_preset === 'string' ? visual_preset : null,
+        Boolean(use_trending_effects),
+        jsonbParam(Array.isArray(visual_effects) ? visual_effects : null),
         media1, media2, media3, media4, media5,
         media6, media7, media8, media9, media10,
         jsonbParam(pickJson(item, ['scenes', 'scene', 'frames'])),

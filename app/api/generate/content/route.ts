@@ -464,7 +464,7 @@ function buildSystemPrompt(brand: Record<string, unknown> | null, quality: strin
 export async function POST(request: Request) {
   try {
     await requireAuth()
-    const { cliente_id, canale, formato, model, openrouter_key, gemini_key, opencode_key, tema, nome_prodotto, product_id, quality, quality_level, post_quality, qualita, obiettivo, uploaded_assets, media_urls, also_canali } = await request.json()
+    const { cliente_id, canale, formato, model, openrouter_key, gemini_key, opencode_key, tema, nome_prodotto, product_id, quality, quality_level, post_quality, qualita, obiettivo, uploaded_assets, media_urls, also_canali, visual_preset, use_trending_effects, visual_effects } = await request.json()
     if (!canale || !formato) {
       return NextResponse.json({ error: 'canale, formato richiesti' }, { status: 400 })
     }
@@ -572,6 +572,7 @@ export async function POST(request: Request) {
       'canale', 'formato', 'obiettivo', 'tema', 'product_id', 'nome_prodotto',
       'hook', 'caption', 'hashtag', 'cta', 'note', 'status', 'media_type',
       'link_prodotto', 'link_prodotto_finale',
+      'visual_preset', 'use_trending_effects', 'visual_effects',
       'link_media_1', 'link_media_2', 'link_media_3', 'link_media_4', 'link_media_5', 'link_media_6', 'link_media_7',
       'link_media_8', 'link_media_9', 'link_media_10',
       'fonte_media', 'consenso_utilizzo',
@@ -599,6 +600,9 @@ export async function POST(request: Request) {
       formato === 'reel' || formato === 'video' || formato === 'short' ? 'video' : 'image',
       (product as Record<string, unknown>)?.link_prodotto as string || null,
       (product as Record<string, unknown>)?.link_prodotto as string || null,
+      typeof visual_preset === 'string' ? visual_preset : null,
+      Boolean(use_trending_effects),
+      jsonbParam(Array.isArray(visual_effects) ? visual_effects : null),
       mediaUrls[0] || null,
       mediaUrls[1] || null,
       mediaUrls[2] || null,

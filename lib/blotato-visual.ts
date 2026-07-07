@@ -53,6 +53,59 @@ function firstMediaUrl(row: ContentRow): string {
   return ''
 }
 
+// Descrittori per preset visual: iniettati nel prompt Blotato per guidare il
+// template AI. Blotato non ha un flag "trending" pubblico — l'AI del template
+// interpreta il prompt. Questi preset sono la nostra libreria interna.
+const PRESET_HINTS: Record<string, { reel: string; carousel: string; image: string }> = {
+  trending: {
+    reel: 'STILE VIRALE ATTUALE: hook visivo aggressivo primi 0-2s (POV, close-up, movimento), tagli rapidi 0.5-1.5s ognuno, transizioni whip-pan/zoom-punch tra scene, testo overlay grande in kinetic-typography con pop rapido, musica beat-drop con sync sui tagli. Estetica IG Reels/TikTok 2026: satura ma coerente col brand, montaggio energico.',
+    carousel: 'STILE CAROSELLO TRENDING: prima slide con hook grafico grande e chiaro (curiosity gap), slide 2-4 con dettagli in sequenza narrativa (problema → soluzione → prova), ultima slide CTA forte + prodotto. Font grande, contrast alto, colori accento coerenti. Estetica LinkedIn/IG carousel 2026 tipo Justin Welsh / Alex Garcia.',
+    image: 'STILE VIRALE FOTO SINGOLA: composizione dinamica (rule-of-thirds spinta), colore accento pop, testo overlay minimal ma di forte impatto in kinetic-typography, atmosfera "scroll-stopping".',
+  },
+  premium: {
+    reel: 'STILE PREMIUM EDITORIALE: pacing calmo (2-4s per scena), tagli morbidi (cross-fade / match-cut), grading cinematografico, camera stabile o slow-motion, testo overlay elegante minimal, musica evocativa non ritmica. Coerenza tono luxury/professional.',
+    carousel: 'STILE PREMIUM EDITORIALE CAROSELLO: palette limitata (3 colori), tipografia serif elegante, generous whitespace, immagini ad alto contrasto e composizione pulita, layout coerente su tutte le slide.',
+    image: 'STILE PREMIUM: composizione minimalista, luce naturale morbida, palette limitata, dettagli materici del prodotto, atmosfera editoriale luxury.',
+  },
+  minimal: {
+    reel: 'STILE MINIMAL: 3-5 scene lunghe (3-5s), no effetti aggressivi, camera fissa o dolly lineare, testo overlay solo dove serve, focus totale sul prodotto/messaggio senza distrazioni.',
+    carousel: 'STILE MINIMAL: max 4 slide, un solo elemento chiave per slide, whitespace dominante, tipografia sans-serif basic.',
+    image: 'STILE MINIMAL: sfondo neutro, oggetto centrato, luce diffusa, zero decorazione.',
+  },
+  classico: {
+    reel: 'STILE CLASSICO: presentazione prodotto in 4-6 scene, montaggio lineare, testo overlay descrittivo, musica di sottofondo neutra, coerenza editoriale col brand.',
+    carousel: 'STILE CLASSICO: 4-5 slide didascaliche (hero + dettagli + CTA), tipografia leggibile, gerarchia chiara.',
+    image: 'STILE CLASSICO: prodotto in evidenza, ambientazione coerente col brand, luce naturale, composizione bilanciata.',
+  },
+}
+
+function normalizeVisualPreset(row: ContentRow): string {
+  // Se il flag use_trending_effects è on, forza 'trending' anche se preset esplicito manca.
+  const flag = Boolean(row.use_trending_effects)
+  const preset = str(row.visual_preset).toLowerCase()
+  if (preset && PRESET_HINTS[preset]) return preset
+  if (flag) return 'trending'
+  // Default: 'premium' per un tono coerente col posizionamento tipo agency premium.
+  return 'premium'
+}
+
+// Effetti extra suggeriti (jsonb array di string) → appesi al prompt in coda.
+function effectsSuffix(row: ContentRow): string {
+  const raw = row.visual_effects
+  if (!raw) return ''
+  const arr = Array.isArray(raw) ? raw : (() => { try { return JSON.parse(String(raw)) } catch { return [] } })()
+  const effects = (Array.isArray(arr) ? arr : []).map(e => String(e).trim()).filter(Boolean)
+  if (!effects.length) return ''
+  return ` Effetti richiesti: ${effects.slice(0, 8).join(', ')}.`
+}
+
+function enrichPrompt(basePrompt: string, row: ContentRow, kind: VisualKind): string {
+  const preset = normalizeVisualPreset(row)
+  const hint = PRESET_HINTS[preset]?.[kind === 'video' ? 'reel' : kind === 'carousel' ? 'carousel' : 'image'] || ''
+  const suffix = effectsSuffix(row)
+  return `${basePrompt}\n\n${hint}${suffix}`.trim()
+}
+
 // Sceglie template + prompt + inputs in base a formato/canale e media disponibili.
 export function planVisual(row: ContentRow): { templateId: string; kind: VisualKind; prompt: string; inputs: Record<string, unknown> } {
   const formato = str(row.formato).toLowerCase()
@@ -70,40 +123,44 @@ export function planVisual(row: ContentRow): { templateId: string; kind: VisualK
 
   // VIDEO/REEL/STORY/SHORT → slideshow video con immagini AI.
   if (['video', 'reel', 'story', 'short'].includes(formato)) {
+    const base = `${brandHint}${visualHint}Crea uno slideshow video verticale e professionale per ${canale}. Coerente col brand. Testi brevi in sovrimpressione. Contesto: ${copyHint}`
     return {
       templateId: TEMPLATES.slideshowVideo,
       kind: 'video',
-      prompt: `${brandHint}${visualHint}Crea uno slideshow video verticale e professionale per ${canale}. Stile fotografico editoriale, luce naturale, coerente col brand. Testi brevi in sovrimpressione. Contesto: ${copyHint}`,
+      prompt: enrichPrompt(base, row, 'video'),
       inputs: { aspectRatio: '9:16' },
     }
   }
 
   // CAROUSEL → carosello Instagram multi-slide.
   if (formato === 'carousel' || formato === 'carosello') {
+    const base = `${brandHint}${visualHint}Crea un carosello Instagram di 3-5 slide, coerente e professionale. Ogni slide mostra il prodotto o un dettaglio/styling. Contesto: ${copyHint}`
     return {
       templateId: TEMPLATES.carousel,
       kind: 'carousel',
-      prompt: `${brandHint}${visualHint}Crea un carosello Instagram di 3-5 slide, coerente e professionale, stile editoriale fashion. Ogni slide mostra il prodotto o un dettaglio/styling. Contesto: ${copyHint}`,
+      prompt: enrichPrompt(base, row, 'carousel'),
       inputs: { aspectRatio: '4:5' },
     }
   }
 
   // POST con foto prodotto reale → product scene placement (immagine lifestyle).
   if (productImage) {
-    const scene = ideaVisual || 'Prodotto valorizzato in una scena lifestyle elegante e luminosa, luce naturale morbida, ambientazione coerente col brand, atmosfera premium e invitante'
+    const scene = ideaVisual || 'Prodotto valorizzato in una scena lifestyle elegante e luminosa, luce naturale morbida, ambientazione coerente col brand'
+    const base = `${brandHint}${scene}. ${copyHint}`
     return {
       templateId: TEMPLATES.productScene,
       kind: 'image',
-      prompt: `${brandHint}${scene}. ${copyHint}`,
+      prompt: enrichPrompt(base, row, 'image'),
       inputs: { productImage, sceneDescription: scene.slice(0, 500) },
     }
   }
 
   // POST senza foto → singola immagine lifestyle generata dall'AI (1 slide carosello).
+  const base = `${brandHint}${visualHint}Genera 1 immagine marketing professionale e fotorealistica per ${canale}. ${copyHint}`
   return {
     templateId: TEMPLATES.carousel,
     kind: 'image',
-    prompt: `${brandHint}${visualHint}Genera 1 immagine marketing professionale e fotorealistica per ${canale}, stile editoriale fashion, luce naturale. ${copyHint}`,
+    prompt: enrichPrompt(base, row, 'image'),
     inputs: { aspectRatio: '4:5' },
   }
 }
