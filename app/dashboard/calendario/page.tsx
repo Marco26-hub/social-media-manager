@@ -908,7 +908,15 @@ function CalendarioInner() {
                     onClick={() => {
                       try { localStorage.setItem(`preview_${c.id_contenuto}`, JSON.stringify({
                         hook: c.hook, caption: c.caption, hashtag: c.hashtag, cta: c.cta,
-                        link_media_1: c.link_media_1, nome_prodotto: c.nome_prodotto,
+                        canale: c.canale, formato: c.formato,
+                        link_media_1: c.link_media_1, link_media_2: c.link_media_2, link_media_3: c.link_media_3,
+                        link_media_4: c.link_media_4, link_media_5: c.link_media_5, link_media_6: c.link_media_6,
+                        link_media_7: c.link_media_7, link_media_8: c.link_media_8, link_media_9: c.link_media_9,
+                        link_media_10: c.link_media_10,
+                        nome_prodotto: c.nome_prodotto, tema: c.tema, note: c.note,
+                        scenes_json: c.scenes_json, slides_json: c.slides_json, overlay_text: c.overlay_text,
+                        alt_text: c.alt_text, tags: c.tags, thumbnail_url: c.thumbnail_url,
+                        idea_visual: c.idea_visual, voiceover_script: c.voiceover_script, music_mood: c.music_mood,
                         link_prodotto_finale: c.link_prodotto_finale || c.link_prodotto,
                         brand_name: brand?.brand_name, social_handle: brand?.social_handle,
                       })) } catch {}

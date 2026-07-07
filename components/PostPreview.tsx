@@ -15,8 +15,70 @@ function isVideoUrl(url: string | null | undefined): boolean {
   return clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.mov') || clean.endsWith('.m4v')
 }
 
-function ReelPlayer({ imgs, handle, caption, hook, hashtag, aspect, canale, formato, canaleIcon }: {
+type VisualItem = Record<string, unknown>
+
+function isVisualItem(value: unknown): value is VisualItem {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function parseVisualItems(value: unknown): VisualItem[] {
+  if (!value) return []
+  let raw: unknown = value
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (!trimmed) return []
+    try {
+      raw = JSON.parse(trimmed)
+    } catch {
+      return []
+    }
+  }
+  if (Array.isArray(raw)) return raw.filter(isVisualItem)
+  if (!isVisualItem(raw)) return []
+  for (const key of ['slides', 'immagini', 'scene', 'scenes', 'frames', 'sezioni']) {
+    if (Array.isArray(raw[key])) return raw[key].filter(isVisualItem)
+  }
+  return [raw]
+}
+
+function itemText(item: VisualItem | undefined, keys: string[]): string {
+  if (!item) return ''
+  for (const key of keys) {
+    const value = item[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    if (Array.isArray(value)) {
+      const text = value.filter(part => typeof part === 'string' && part.trim()).join(' ')
+      if (text) return text
+    }
+  }
+  return ''
+}
+
+function mediaUrls(c: Contenuto): string[] {
+  return [
+    c.link_media_1, c.link_media_2, c.link_media_3, c.link_media_4, c.link_media_5,
+    c.link_media_6, c.link_media_7, c.link_media_8, c.link_media_9, c.link_media_10,
+  ].filter(Boolean) as string[]
+}
+
+function VisualBriefCard({ icon, title, description, accent = 'from-gray-700 to-gray-950' }: {
+  icon: string
+  title: string
+  description?: string | null
+  accent?: string
+}) {
+  return (
+    <div className={`w-full h-full bg-gradient-to-br ${accent} flex flex-col items-center justify-center text-center text-white p-5`}>
+      <div className="text-4xl mb-3">{icon}</div>
+      <p className="text-sm font-bold leading-tight line-clamp-3">{title}</p>
+      {description && <p className="text-[11px] text-white/75 mt-2 leading-snug line-clamp-4">{description}</p>}
+    </div>
+  )
+}
+
+function ReelPlayer({ imgs, storyboard, handle, caption, hook, hashtag, aspect, canale, formato, canaleIcon }: {
   imgs: string[]
+  storyboard?: VisualItem[]
   handle: string
   caption: string | null | undefined
   hook: string | null | undefined
@@ -28,7 +90,8 @@ function ReelPlayer({ imgs, handle, caption, hook, hashtag, aspect, canale, form
 }) {
   const videoUrl = useMemo(() => imgs.find(isVideoUrl), [imgs])
   const stills = useMemo(() => imgs.filter(u => !isVideoUrl(u)), [imgs])
-  const total = Math.max(1, stills.length)
+  const frames = storyboard ?? []
+  const total = Math.max(1, stills.length || frames.length)
   const [index, setIndex] = useState(0)
   const [playing, setPlaying] = useState(true)
   const [progress, setProgress] = useState(0)
@@ -51,6 +114,10 @@ function ReelPlayer({ imgs, handle, caption, hook, hashtag, aspect, canale, form
   }, [videoUrl, total, playing, index])
 
   const currentStill = stills[index]
+  const currentFrame = currentStill ? undefined : frames[index]
+  const currentFrameTitle = itemText(currentFrame, ['overlay_testo', 'testo_overlay', 'testo', 'hook', 'titolo', 'h2'])
+  const currentFrameDescription = itemText(currentFrame, ['descrizione', 'visual', 'descrizione_visiva', 'immagine_descrizione', 'parlato', 'audio'])
+  const playerLabel = formato === 'short' ? 'Short' : formato === 'video' ? 'Video' : 'Reel'
 
   return (
     <div className="max-w-[280px] mx-auto">
@@ -69,14 +136,21 @@ function ReelPlayer({ imgs, handle, caption, hook, hashtag, aspect, canale, form
         ) : currentStill ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={currentStill} alt="" className="w-full h-full object-cover transition-opacity duration-300" />
+        ) : currentFrame ? (
+          <VisualBriefCard
+            icon={canaleIcon}
+            title={currentFrameTitle || hook || playerLabel}
+            description={currentFrameDescription || caption}
+            accent="from-slate-800 via-gray-900 to-black"
+          />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-5xl">{canaleIcon}</div>
+          <VisualBriefCard icon={canaleIcon} title={hook || playerLabel} description={caption} />
         )}
 
         {/* Progress bar segmentata (IG stories/reels style) */}
         {total > 1 && !videoUrl && (
           <div className="absolute top-2 left-2 right-2 flex gap-1 z-10">
-            {stills.map((_, i) => (
+            {Array.from({ length: total }, (_, i) => (
               <div key={i} className="flex-1 h-0.5 rounded-full bg-white/30 overflow-hidden">
                 <div
                   className="h-full bg-white rounded-full transition-[width] duration-100 ease-linear"
@@ -94,7 +168,7 @@ function ReelPlayer({ imgs, handle, caption, hook, hashtag, aspect, canale, form
           <div className="flex items-center gap-2">
             <Volume2 className="w-4 h-4 drop-shadow" />
             <span className="text-[10px] uppercase tracking-wide font-bold bg-white/20 backdrop-blur-sm px-1.5 py-0.5 rounded">
-              {videoUrl ? 'Video' : 'Reel'}
+              {videoUrl ? 'Video' : playerLabel}
             </span>
           </div>
         </div>
@@ -125,7 +199,7 @@ function ReelPlayer({ imgs, handle, caption, hook, hashtag, aspect, canale, form
         {/* Caption sovrapposta in fondo */}
         <div className="absolute bottom-3 left-3 right-12 text-white text-xs z-10">
           <p className="font-semibold mb-1 drop-shadow">{handle}</p>
-          <p className="line-clamp-3 leading-snug drop-shadow">{caption ?? hook}</p>
+          <p className="line-clamp-3 leading-snug drop-shadow">{caption ?? hook ?? currentFrameTitle}</p>
           {hashtag && <p className="text-[10px] opacity-90 mt-1 truncate drop-shadow">{hashtag}</p>}
           <p className="text-[10px] mt-1.5 flex items-center gap-1 opacity-90">
             <Music2 className="w-3 h-3" /> audio originale · {handle}
@@ -242,6 +316,33 @@ function CarouselGallery({ imgs, canale }: { imgs: string[]; canale: string }) {
   )
 }
 
+function StructuredCarouselGallery({ items, canale }: { items: VisualItem[]; canale: string }) {
+  const slides = items.length ? items : [{}]
+  return (
+    <div className="flex h-full overflow-x-auto snap-x snap-mandatory" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      {slides.map((item, index) => {
+        const title = itemText(item, ['testo', 'titolo', 'didascalia', 'hook', 'h2']) || `Slide ${index + 1}`
+        const description = itemText(item, ['visual', 'descrizione_visiva', 'immagine_descrizione', 'descrizione', 'paragrafi'])
+        return (
+          <div key={index} className="w-full h-full flex-shrink-0 snap-center">
+            <VisualBriefCard
+              icon={CANALE_ICON[canale] || '📸'}
+              title={title}
+              description={description}
+              accent="from-indigo-600 via-purple-700 to-slate-950"
+            />
+          </div>
+        )
+      })}
+      {slides.length > 1 && (
+        <div className="absolute top-2 right-2 bg-black/65 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full backdrop-blur-sm">
+          {slides.length} slide
+        </div>
+      )}
+    </div>
+  )
+}
+
 type BrandHandleInfo = { brand_name?: string | null; social_handle?: string | null; sito_url?: string | null } | null
 
 // Testo sticker link stile IG: dominio nudo maiuscolo ("https://silkincom.com/x" -> "SILKINCOM.COM")
@@ -256,7 +357,7 @@ function domainLabel(url: string): string {
 
 const CANALE_ICON: Record<string, string> = {
   instagram: '📸', facebook: '🔵', tiktok: '🎵', pinterest: '📌', youtube_shorts: '▶️',
-  linkedin: '💼', threads: '🧵', x: '✖️',
+  linkedin: '💼', threads: '🧵', x: '✖️', blog: '✍️',
 }
 
 // Aspect ratios standard per canale/formato
@@ -268,12 +369,14 @@ const ASPECT: Record<string, string> = {
   'facebook-post':       'aspect-[1.91/1]',     // landscape
   'facebook-carousel':   'aspect-square',
   'facebook-video':      'aspect-video',        // 16:9
+  'facebook-reel':       'aspect-[9/16]',       // 9:16
   'tiktok-video':        'aspect-[9/16]',
   'tiktok-reel':         'aspect-[9/16]',
   'pinterest-pin':       'aspect-[2/3]',        // 2:3 pin
   'youtube_shorts-short':'aspect-[9/16]',
   'linkedin-post':       'aspect-square',       // 1:1
   'linkedin-articolo':   'aspect-video',        // 16:9
+  'blog-articolo':       'aspect-video',        // 16:9
   'threads-post':        'aspect-square',       // 1:1
   'threads-reel':        'aspect-[9/16]',       // 9:16
   'x-post':              'aspect-video',        // 16:9
@@ -285,6 +388,11 @@ export default function PostPreview({ c, brand }: { c: Contenuto; brand?: BrandH
   const aspect = ASPECT[key] ?? 'aspect-square'
   const handle = resolveHandle(c.canale, brand)
   const linkUrl = c.link_prodotto_finale || c.link_prodotto || brand?.sito_url || ''
+  const media = mediaUrls(c)
+  const slideItems = parseVisualItems(c.slides_json)
+  const sceneItems = parseVisualItems(c.scenes_json)
+  const fallbackVisualTitle = c.overlay_text || c.hook || c.idea_visual || c.nome_prodotto || `${c.canale} ${c.formato}`
+  const fallbackVisualDescription = c.idea_visual || c.alt_text || c.caption
 
   // Layout Instagram Story — verticale con progress bar + stickers
   if (c.formato === 'story') {
@@ -294,6 +402,13 @@ export default function PostPreview({ c, brand }: { c: Contenuto; brand?: BrandH
           {c.link_media_1 ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={c.link_media_1} alt="" className="w-full h-full object-cover" />
+          ) : sceneItems[0] || slideItems[0] ? (
+            <VisualBriefCard
+              icon={CANALE_ICON[c.canale] || '📸'}
+              title={itemText(sceneItems[0] || slideItems[0], ['hook', 'overlay_testo', 'testo_overlay', 'testo']) || fallbackVisualTitle}
+              description={itemText(sceneItems[0] || slideItems[0], ['immagine_descrizione', 'descrizione', 'visual']) || fallbackVisualDescription}
+              accent="from-pink-600 via-purple-700 to-slate-950"
+            />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-pink-500 to-purple-700 flex items-center justify-center text-5xl">📸</div>
           )}
@@ -351,14 +466,27 @@ export default function PostPreview({ c, brand }: { c: Contenuto; brand?: BrandH
 
   // Layout Blog articolo
   if (c.canale === 'blog' || c.formato === 'articolo') {
+    const articleLabel = c.canale === 'linkedin' ? 'LinkedIn' : 'Blog'
+    const articleAccent = c.canale === 'linkedin' ? 'text-blue-700 bg-blue-50' : 'text-amber-700 bg-amber-50'
     return (
       <div className="max-w-[380px] mx-auto bg-white rounded-xl border border-gray-200 overflow-hidden shadow-lg">
-        {c.link_media_1 && (
+        {c.link_media_1 ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={c.link_media_1} alt="" className="w-full aspect-[16/9] object-cover" />
+        ) : (
+          <div className="aspect-video">
+            <VisualBriefCard
+              icon={CANALE_ICON[c.canale] || '✍️'}
+              title={c.hook || c.nome_prodotto || 'Articolo'}
+              description={c.idea_visual || c.caption}
+              accent={c.canale === 'linkedin' ? 'from-blue-700 via-sky-800 to-slate-950' : 'from-amber-600 via-orange-700 to-slate-950'}
+            />
+          </div>
         )}
         <div className="p-4">
-          <p className="text-[10px] uppercase tracking-wide text-amber-700 font-semibold mb-1.5">Blog · {c.tema || 'Articolo'}</p>
+          <p className={`inline-flex rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide font-semibold mb-1.5 ${articleAccent}`}>
+            {articleLabel} · {c.tema || 'Articolo'}
+          </p>
           <h2 className="font-bold text-gray-900 leading-snug mb-2">{c.hook || 'Titolo articolo'}</h2>
           <p className="text-xs text-gray-600 line-clamp-3 leading-relaxed">{c.caption}</p>
           {c.hashtag && (
@@ -384,12 +512,12 @@ export default function PostPreview({ c, brand }: { c: Contenuto; brand?: BrandH
     )
   }
 
-  // Layout TikTok/Reel/Short — verticale fullscreen con player video o slideshow foto.
-  if (c.formato === 'reel' || c.formato === 'short' || c.canale === 'tiktok') {
-    const media = [c.link_media_1, c.link_media_2, c.link_media_3, c.link_media_4, c.link_media_5, c.link_media_6, c.link_media_7].filter(Boolean) as string[]
+  // Layout Video/Reel/Short — player video reale o storyboard/slide quando il video non è ancora composto.
+  if (c.formato === 'reel' || c.formato === 'short' || c.formato === 'video' || c.canale === 'tiktok') {
     return (
       <ReelPlayer
         imgs={media}
+        storyboard={sceneItems.length ? sceneItems : slideItems}
         handle={handle}
         caption={c.caption}
         hook={c.hook}
@@ -411,7 +539,7 @@ export default function PostPreview({ c, brand }: { c: Contenuto; brand?: BrandH
             // eslint-disable-next-line @next/next/no-img-element
             <img src={c.link_media_1} alt="" className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-4xl">📌</div>
+            <VisualBriefCard icon="📌" title={fallbackVisualTitle} description={fallbackVisualDescription} accent="from-red-600 via-rose-700 to-slate-950" />
           )}
           <button className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
             Salva
@@ -448,14 +576,15 @@ export default function PostPreview({ c, brand }: { c: Contenuto; brand?: BrandH
       {/* Media */}
       <div className={`${aspect} bg-gray-100 relative`}>
         {c.formato === 'carousel' ? (() => {
-          const imgs = [c.link_media_1, c.link_media_2, c.link_media_3, c.link_media_4, c.link_media_5, c.link_media_6, c.link_media_7].filter(Boolean) as string[]
-          if (!imgs.length) return <div className="w-full h-full flex items-center justify-center text-5xl">{CANALE_ICON[c.canale]}</div>
+          if (!media.length && slideItems.length) return <StructuredCarouselGallery items={slideItems} canale={c.canale} />
+          if (!media.length) return <VisualBriefCard icon={CANALE_ICON[c.canale] || '📸'} title={fallbackVisualTitle} description={fallbackVisualDescription} />
+          const imgs = media
           return <CarouselGallery imgs={imgs} canale={c.canale} />
         })() : c.link_media_1 ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={c.link_media_1} alt="" className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-5xl">{CANALE_ICON[c.canale]}</div>
+          <VisualBriefCard icon={CANALE_ICON[c.canale] || '📸'} title={fallbackVisualTitle} description={fallbackVisualDescription} />
         )}
       </div>
 

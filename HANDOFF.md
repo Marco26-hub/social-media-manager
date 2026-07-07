@@ -2,7 +2,7 @@
 
 > Documento per AI agent multipli (Claude CLI, Cursor/Cline, Codex). Lavoriamo come un team unificato.
 
-**Data ultimo aggiornamento**: 2026-07-07 notte (Codex: fix calendario/blog/AI key da screenshot, build verde)
+**Data ultimo aggiornamento**: 2026-07-07 tarda notte (Codex: preview tutti formati post + fallback scene/slide, build verde)
 **Progetto**: Social Automation — SaaS social media management per agenzie
 **Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Gemini/OpenRouter/Anthropic/OpenCode/Ollama)
 **Percorso locale**: `/Users/md/Documents/social_automation_v2`
@@ -48,9 +48,15 @@ Commit atomici su `main`, build+lint verdi ad ogni step.
 - **Default AI anti-errore OpenRouter**: `AIModelSelector` e `readAISettings()` non restano più su modelli OpenRouter senza key; default a Gemini nativo e auto-heal del modello salvato se manca `openrouter_key`. OpenRouter resta opzionale.
 - **Validazioni**: `git diff --check` ✅, `npm run lint` ✅ (0 errori, 7 warning storici), `npm run build` ✅.
 
+### ✅ Fix screenshot 2026-07-07 tarda notte — preview tutti tipi post
+- **Preview shared completa (#17 chiuso)**: `/api/data/preview` ora ritorna anche `scenes_json`, `slides_json`, `overlay_text`, `idea_visual`, `alt_text`, `thumbnail_url`, `music_mood`, `tema`, `note` e tutti gli slot `link_media_1..10`, con fallback `NULL` se una migration non è ancora sul DB.
+- **Preview dal calendario fedele**: il localStorage del link `/preview/[id]` salva canale/formato, 10 media slot e metadata visuali; il fallback locale non trasforma più Facebook video/carousel/reel in Instagram post.
+- **Renderer tutti formati**: `PostPreview` copre post, carousel, reel, story, video, pin, short e articolo per Instagram/Facebook/TikTok/Pinterest/LinkedIn/YouTube Shorts/Blog/Threads/X; video Facebook/X passano nel player video, caroselli senza immagini mostrano le slide AI, reel/story senza video mostrano storyboard da `scenes_json`.
+- **Validazioni**: `git diff --check` ✅, `npm run lint` ✅ (0 errori, 7 warning storici), `npm run build` ✅, `npm run migrate:dry` ✅.
+
 ### 🔴 HIGH ancora aperti dopo questa continuation
 - **Publish #4 da riverificare**: `resolveBlotatoTarget()` già rifiuta Facebook senza Page e imposta privacy TikTok, ma va verificato contro contratto reale Blotato.
-- **Security #13-#19**, **Health/Monitoring #20/#22/#23/#24**, **AI #25/#26/#27** restano aperti.
+- **Security #13-#16/#18/#19**, **Health/Monitoring #20/#22/#23/#24**, **AI #25/#26/#27** restano aperti.
 - **Nota working tree**: `app/page.tsx` + `app/home.module.css` contengono modifiche landing/pacchetti di Claude; non mischiarle con commit Stripe/Blotato se si vogliono commit atomici.
 
 ### 🛠️ Task per Codex — HIGH residui go-live (28 blocker)
@@ -78,7 +84,7 @@ Priorità dall'audit. Ordinare per business impact + accessibilità dei file.
 14. **Mask secret keys in `/api/data/settings`**: attualmente `GET` ritorna `blotato_api_key` in chiaro. Mask lato server (`****last4`) tranne quando l'utente sta editando (POST). Considera AES-GCM at-rest.
 15. **`/api/auth/register` rate-limit + captcha**: già rate-limit generico 10/IP/5min, ma serve captcha (hCaptcha/Turnstile) contro botnet. Env `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY`.
 16. **SSRF `isPrivateHost` lessicale**: in `lib/media-validate.ts` e `scrape-contacts` — ora blocca solo se hostname *sembra* privato. Fare DNS resolution reale + blocklist IPv4 privati/link-local (10./172.16./192.168./127./169.254.) + IPv6 (::1, fc00::/7, fe80::/10) prima E dopo redirect.
-17. **Preview shared ignora `slides_json`/`scenes_json`**: `app/api/data/preview/route.ts` SELECT non include questi campi → preview reel/carosello perde le scene AI. Aggiungerli al SELECT.
+17. ✅ **CHIUSO — Preview shared ignora `slides_json`/`scenes_json`**: `app/api/data/preview/route.ts` include campi visuali/scene/slide + 10 slot media, e `PostPreview` usa questi dati come fallback visivo per reel/caroselli/story/video.
 18. **`consenso_utilizzo` hardcoded `'SI'`**: `app/api/generate/content/route.ts` linea 610 mette `'SI'` in automatico quando ci sono media. Serve checkbox esplicita in UI upload + gate `publish` se `!= 'SI'` per URL esterni (rischio copyright).
 19. **Sync manuale Blotato senza signature**: `app/api/webhook/blotato/route.ts` in demo mode accetta senza firma. Fail-closed se `NODE_ENV=production` anche con demo flag.
 

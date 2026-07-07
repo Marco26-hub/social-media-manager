@@ -14,8 +14,11 @@ const CANALE_LABEL: Record<string, string> = {
 }
 const FORMATO_LABEL: Record<string, string> = {
   post: 'Post', carousel: 'Carosello', reel: 'Reel', story: 'Story', video: 'Video',
-  pin: 'Pin', short: 'Short', articolo: 'Articolo', foto: 'Foto',
+  pin: 'Pin', short: 'Short', articolo: 'Articolo',
 }
+
+const CANALE_KEYS = new Set(Object.keys(CANALE_LABEL))
+const FORMATO_KEYS = new Set(Object.keys(FORMATO_LABEL))
 
 const DEMO_DATA = {
   cliente_nome: 'SILKinCOM',
@@ -26,6 +29,36 @@ const DEMO_DATA = {
   link_media_1: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400',
   nome_prodotto: 'Blazer in lino',
   tema: 'Outfit elegante da giorno',
+}
+
+function textValue(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function jsonTextValue(value: unknown): string | null {
+  if (typeof value === 'string') return value
+  if (value == null) return null
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return null
+  }
+}
+
+function mediaSlotValues(data: Record<string, unknown>): (string | null)[] {
+  return Array.from({ length: 10 }, (_, i) => textValue(data[`link_media_${i + 1}`]) || null)
+}
+
+function canaleValue(value: unknown): Contenuto['canale'] | null {
+  const raw = textValue(value)
+  if (!CANALE_KEYS.has(raw)) return null
+  return raw as Contenuto['canale']
+}
+
+function formatoValue(value: unknown): Contenuto['formato'] | null {
+  const raw = textValue(value)
+  if (!FORMATO_KEYS.has(raw)) return null
+  return raw as Contenuto['formato']
 }
 
 export default function PreviewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -44,6 +77,18 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
   const [canale, setCanale] = useState<Contenuto['canale']>('instagram')
   const [formato, setFormato] = useState<Contenuto['formato']>('post')
   const [mediaSlots, setMediaSlots] = useState<(string | null)[]>([])
+  const [nomeProdotto, setNomeProdotto] = useState(DEMO_DATA.nome_prodotto)
+  const [tema, setTema] = useState(DEMO_DATA.tema)
+  const [note, setNote] = useState('')
+  const [scenesJson, setScenesJson] = useState<string | null>(null)
+  const [slidesJson, setSlidesJson] = useState<string | null>(null)
+  const [overlayText, setOverlayText] = useState<string | null>(null)
+  const [altText, setAltText] = useState<string | null>(null)
+  const [tags, setTags] = useState<string[] | null>(null)
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
+  const [ideaVisual, setIdeaVisual] = useState<string | null>(null)
+  const [voiceoverScript, setVoiceoverScript] = useState<string | null>(null)
+  const [musicMood, setMusicMood] = useState<string | null>(null)
 
   useEffect(() => {
     params.then(p => setId(p.id))
@@ -62,15 +107,33 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
     try {
       const raw = localStorage.getItem(`preview_${id}`)
       if (raw) {
-        const d = JSON.parse(raw)
-        if (d.hook) setHook(d.hook)
-        if (d.caption) setCaption(d.caption)
-        if (d.hashtag) setHashtag(d.hashtag)
-        if (d.cta) setCta(d.cta)
-        if (d.link_media_1) setMediaUrl(d.link_media_1)
-        if (d.brand_name) setBrandName(d.brand_name)
-        if (d.social_handle) setSocialHandle(d.social_handle)
-        if (d.link_prodotto_finale) setLinkProdotto(d.link_prodotto_finale)
+        const d = JSON.parse(raw) as Record<string, unknown>
+        if (textValue(d.hook)) setHook(textValue(d.hook))
+        if (textValue(d.caption)) setCaption(textValue(d.caption))
+        if (textValue(d.hashtag)) setHashtag(textValue(d.hashtag))
+        if (textValue(d.cta)) setCta(textValue(d.cta))
+        if (textValue(d.link_media_1)) setMediaUrl(textValue(d.link_media_1))
+        if (textValue(d.brand_name)) setBrandName(textValue(d.brand_name))
+        if (textValue(d.social_handle)) setSocialHandle(textValue(d.social_handle))
+        if (textValue(d.link_prodotto_finale)) setLinkProdotto(textValue(d.link_prodotto_finale))
+        const localCanale = canaleValue(d.canale)
+        const localFormato = formatoValue(d.formato)
+        const localMediaSlots = mediaSlotValues(d)
+        if (localCanale) setCanale(localCanale)
+        if (localFormato) setFormato(localFormato)
+        if (localMediaSlots.some(Boolean)) setMediaSlots(localMediaSlots)
+        if (textValue(d.nome_prodotto)) setNomeProdotto(textValue(d.nome_prodotto))
+        if (textValue(d.tema)) setTema(textValue(d.tema))
+        if (textValue(d.note)) setNote(textValue(d.note))
+        setScenesJson(jsonTextValue(d.scenes_json))
+        setSlidesJson(jsonTextValue(d.slides_json))
+        setOverlayText(textValue(d.overlay_text) || null)
+        setAltText(textValue(d.alt_text) || null)
+        setThumbnailUrl(textValue(d.thumbnail_url) || null)
+        setIdeaVisual(textValue(d.idea_visual) || null)
+        setVoiceoverScript(textValue(d.voiceover_script) || null)
+        setMusicMood(textValue(d.music_mood) || null)
+        if (Array.isArray(d.tags)) setTags(d.tags.filter((tag): tag is string => typeof tag === 'string'))
       }
       const exRaw = localStorage.getItem(`preview_${id}_excluded`)
       if (exRaw) setExcluded(new Set(JSON.parse(exRaw)))
@@ -86,7 +149,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
       .then(r => r.ok ? r.json() : null)
       .then((d: Record<string, unknown> | null) => {
         if (!d || annullato) return
-        const s = (v: unknown) => typeof v === 'string' ? v : ''
+        const s = textValue
         // Contenuto REALE trovato → è la fonte di verità: sovrascrive i dati demo,
         // ANCHE quando un campo è vuoto (es. nessuna foto → mostra placeholder, non
         // l'immagine demo finta). Prima il ripiego demo restava se il reale era vuoto.
@@ -97,10 +160,24 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
         setMediaUrl(s(d.link_media_1))
         if (s(d.brand_name)) setBrandName(s(d.brand_name))
         if (s(d.social_handle)) setSocialHandle(s(d.social_handle))
-        if (s(d.canale)) setCanale(s(d.canale) as Contenuto['canale'])
-        if (s(d.formato)) setFormato(s(d.formato) as Contenuto['formato'])
-        setMediaSlots(Array.from({ length: 10 }, (_, i) => s(d[`link_media_${i + 1}`]) || null))
+        const dbCanale = canaleValue(d.canale)
+        const dbFormato = formatoValue(d.formato)
+        if (dbCanale) setCanale(dbCanale)
+        if (dbFormato) setFormato(dbFormato)
+        setMediaSlots(mediaSlotValues(d))
         setLinkProdotto(s(d.link_prodotto_finale) || s(d.link_prodotto))
+        setNomeProdotto(s(d.nome_prodotto))
+        setTema(s(d.tema))
+        setNote(s(d.note))
+        setScenesJson(jsonTextValue(d.scenes_json))
+        setSlidesJson(jsonTextValue(d.slides_json))
+        setOverlayText(s(d.overlay_text) || null)
+        setAltText(s(d.alt_text) || null)
+        setThumbnailUrl(s(d.thumbnail_url) || null)
+        setIdeaVisual(s(d.idea_visual) || null)
+        setVoiceoverScript(s(d.voiceover_script) || null)
+        setMusicMood(s(d.music_mood) || null)
+        if (Array.isArray(d.tags)) setTags(d.tags.filter((tag): tag is string => typeof tag === 'string'))
       })
       .catch(() => {})
     return () => { annullato = true }
@@ -119,23 +196,26 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
   const platforms = [{ canale, formato, label: `${CANALE_LABEL[canale] || canale} ${FORMATO_LABEL[formato] || formato}` }]
   const excludedCount = excluded.size
   const publishableCount = platforms.length - excludedCount
+  const resolvedMediaSlots = Array.from({ length: 10 }, (_, index) => (
+    mediaSlots[index] || (index === 0 ? mediaUrl : null) || null
+  ))
 
   const baseContenuto: Contenuto = {
     id, cliente_id: '', id_contenuto: id,
     data_pubblicazione: '', ora_pubblicazione: '',
     canale, formato,
     hook, caption, hashtag, cta,
-    link_media_1: mediaUrl, link_media_2: mediaSlots[1] || null, link_media_3: mediaSlots[2] || null,
-    link_media_4: mediaSlots[3] || null, link_media_5: mediaSlots[4] || null, link_media_6: mediaSlots[5] || null, link_media_7: mediaSlots[6] || null,
-    link_media_8: mediaSlots[7] || null, link_media_9: mediaSlots[8] || null, link_media_10: mediaSlots[9] || null,
-    nome_prodotto: DEMO_DATA.nome_prodotto, tema: DEMO_DATA.tema,
+    link_media_1: resolvedMediaSlots[0], link_media_2: resolvedMediaSlots[1], link_media_3: resolvedMediaSlots[2],
+    link_media_4: resolvedMediaSlots[3], link_media_5: resolvedMediaSlots[4], link_media_6: resolvedMediaSlots[5], link_media_7: resolvedMediaSlots[6],
+    link_media_8: resolvedMediaSlots[7], link_media_9: resolvedMediaSlots[8], link_media_10: resolvedMediaSlots[9],
+    nome_prodotto: nomeProdotto || null, tema: tema || null,
     obiettivo: null, product_id: null,
     link_prodotto: null, link_prodotto_finale: linkProdotto || null,
     status: 'DA_APPROVARE', media_type: 'image', retry_count: 0,
     approvato_da: null, data_approvazione: null,
     blotato_post_id: null, blotato_scheduled_at: null,
     blotato_status: null, blotato_post_url: null, blotato_sync_at: null,
-    errore: null, note: null,
+    errore: null, note: note || null,
     platform_account_id: null, publish_lock_id: null,
     media_validato: null,
     last_retry_at: null, errore_tecnico: null,
@@ -144,9 +224,9 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
     utm_source: null, utm_medium: null, utm_campaign: null, utm_content: null,
     promo_id: null, promo_codice: null, promo_validata: null,
     fonte_media: null, consenso_utilizzo: null,
-    scenes_json: null, slides_json: null, overlay_text: null,
-    alt_text: null, tags: null, thumbnail_url: null,
-    idea_visual: null, voiceover_script: null, music_mood: null,
+    scenes_json: scenesJson, slides_json: slidesJson, overlay_text: overlayText,
+    alt_text: altText, tags, thumbnail_url: thumbnailUrl,
+    idea_visual: ideaVisual, voiceover_script: voiceoverScript, music_mood: musicMood,
     checked_alt_text: null, checked_aspect_ratio: null, checked_media_valid: null,
     created_at: '', updated_at: '',
   }
@@ -255,7 +335,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
               ...baseContenuto,
               canale,
               formato,
-              link_media_1: mediaUrl,
+              link_media_1: resolvedMediaSlots[0],
             }
             return (
               <div
