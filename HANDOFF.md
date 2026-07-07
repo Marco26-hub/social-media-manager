@@ -15,7 +15,13 @@
 
 Working tree su `main`, `build` verde ad ogni commit. Deploy live verificato (`health.mode=production`). Ultimi commit chiave: `372ada5` (servizi auto-fit), `7ba0027` (5 servizi + capacità 12), `33ca153` (pacchetti fonte unica), `d1e2ed1`, `bc19e50`, `f9f584f`, `1c0648a`.
 
-### Landing — 5 servizi aziendali + capacità complete (ultimo blocco)
+### Landing — servizi attivi/in-arrivo + effetti + torna-su (ultimissimo blocco)
+- **Servizi separati per disponibilità**: sezione "Servizi" = 3 ATTIVI (Social, Siti & E-commerce, Visibilità & Crescita); nuova sezione **"In arrivo"** (pannello scuro premium con aurora) = Voce AI & Reception + Automazione & Agenti AI, badge "Accesso anticipato" + CTA "Entra in lista d'attesa" (WhatsApp). Onestà SEO: `OfferCatalog` in `JsonLd.tsx` = solo i 3 attivi.
+- **Nuovi effetti** (`components/RevealOnScroll.tsx`, `CountUp.tsx`, aurora CSS): scroll-reveal su intro+griglie (`[data-reveal]`, no-FOUC via `html[data-reveal-ready]`), count-up numeri hero, aurora rotante su "In arrivo". Tutti reduced-motion-safe.
+- **`components/BackToTop.tsx`**: pulsante "torna su" flottante.
+- Contesto pacchetti/servizi confermato dall'utente: **tutti e 5 i servizi sono offerti** (social+siti+visibilità attivi ora; voce AI/automazione in arrivo, voce AI già su richiesta con partner Vapi/Synthflow). Lead generation nei pacchetti = oggi **simulato** (da rifare reale).
+
+### Landing — 5 servizi aziendali + capacità complete (blocco precedente)
 - **`socialwebautomation.com` ("Aether") = stessa azienda.** La landing ora rappresenta l'INTERA offerta. Nuova sezione **"Servizi"** (`#servizi` in `app/page.tsx`, const `SERVIZI`): 5 pilastri IT, brand invariato "Social Automation", raggruppati **Automazione** (Agenti AI, Voce AI & Reception) + **Strategia & Crescita** (Siti & E-commerce, Social automatizzato, Visibilità & Crescita). Card numerate 01-05, `.serviceGrid` auto-fit (`app/home.module.css`).
 - **Sezione "Cosa include"** (ex "Cosa fa", id `#capacita` invariato): capacità **espansa 7→12** con l'inventario reale del prodotto: + Blog, Campagne ADS, Scoperta brand, Catalogo prodotti, Immagini AI, Documenti legali GDPR. **Lead generation resta** (testo più chiaro). Linguaggio semplice per non esperti, niente gergo/metriche finte.
 - **Onestà**: le 12 capacità sono feature reali collegate a DB/backend TRANNE **Lead generation = SIMULATO** (genera lead con temperatura, non scraping live — vedi memoria `lead-research-rebuild`; da rifare reale con search API). I 5 pilastri sono servizi offerti dall'azienda: Social+Visibilità coperti dall'app, Automazione/Voce AI/Siti erogati come servizio (non schermate del pannello). L'utente conferma: **tutti e 5 i servizi sono offerti davvero**.
@@ -32,6 +38,18 @@ Working tree su `main`, `build` verde ad ogni commit. Deploy live verificato (`h
 
 ### Registrazione self-serve + provisioning (blocco precedente)
 - `/register` (pacchetto preselezionato) → account `pending` → `/dashboard/registrazioni` (admin, requireAdmin) → **Attiva crea il workspace** (`clienti` + `user_client_access` owner). Gate login fail-closed. Migration `022_onboarding_signup.sql`.
+
+### 🎯 PROSSIMA SESSIONE — Upgrade landing "premium elite"
+Obiettivo utente: **landing premium, elite, professionale, moderna** (livello agenzia top). Stato attuale già buono (editoriale Fraunces, cream/forest/gold, TiltCard 3D, orbs, scroll-reveal, count-up, aurora, back-to-top) ma da portare a livello superiore. Aree su cui lavorare:
+- **Type scale & spacing**: ritmo verticale più arioso, gerarchia più netta, micro-tipografia (tracking, leading) rifinita.
+- **Hero**: valutare visual più ricco/animato, eventuale immagine/mockup reale, motion più curato.
+- **Card & sezioni**: shine/spotlight su hover, bordi gradient animati, ombre multi-layer più profonde, glassmorphism dove serve.
+- **Coerenza premium** anche su `/servizi` e `/register` (oggi la landing è la più curata).
+- **Bug noti da fixare nel pass premium**:
+  - Prezzi: su card strette (`auto-fit`) il suffisso `/mese` va a capo/sborda su "€1.090/mese" e "€1.690/mese" (Crescita/E-commerce) — vedi `.priceAmount` in `home.module.css`, serve `white-space: nowrap` o size responsive.
+  - Verifica visiva effetti (scroll-reveal/aurora/count-up) mai fatta a schermo (Chrome ext era giù) — controllare il movimento e tarare.
+- Considerare: dark mode, sezione "come lavoriamo"/case study, loghi/prova sociale (quando disponibili, niente finti), favicon/OG image curati.
+- Il pulsante `BackToTop.tsx` usa stile inline — se si vuole coerenza totale, spostarlo su CSS module.
 
 ### ⚠️ TODO utente (env Render + azioni)
 - 🔴 `ADMIN_EMAIL`+`ADMIN_PASSWORD` (default `admin/1234567` ancora attivo, non aprire al pubblico).
