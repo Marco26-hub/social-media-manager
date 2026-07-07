@@ -90,3 +90,26 @@ export function pacchettoBySlug(slug: string | null | undefined): Pacchetto | un
   if (!slug) return undefined
   return PACCHETTI.find(p => p.slug === slug.toLowerCase())
 }
+
+// Mapping legacy DB → pacchetti marketing.
+// `clienti.piano` nasce con valori tecnici storici (free/pro/agency/enterprise),
+// mentre la fonte unica commerciale usa slug reali (starter/presenza/slancio/
+// crescita/ecommerce/dominio). Per evitare una migration invasiva oggi, la vista
+// cliente mappa i valori legacy qui; la quota resta comunque `clienti.contenuti_mese`.
+export const PIANO_TO_PACCHETTO_SLUG: Record<string, string> = {
+  free: 'starter',
+  pro: 'crescita',
+  agency: 'ecommerce',
+  enterprise: 'dominio',
+  growth: 'crescita',
+}
+
+export function pacchettoSlugFromPiano(piano: string | null | undefined): string {
+  const normalized = (piano || '').toLowerCase().trim()
+  if (PACCHETTO_SLUGS.has(normalized)) return normalized
+  return PIANO_TO_PACCHETTO_SLUG[normalized] || 'starter'
+}
+
+export function pacchettoFromPiano(piano: string | null | undefined): Pacchetto {
+  return pacchettoBySlug(pacchettoSlugFromPiano(piano)) || PACCHETTI[0]
+}
