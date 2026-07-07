@@ -1,8 +1,160 @@
 'use client'
-import { useRef, useState } from 'react'
-import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, Play, Link2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, Play, Pause, Volume2, Link2, ChevronLeft, ChevronRight, Music2 } from 'lucide-react'
 import type { Contenuto } from '@/lib/types'
 import { resolveHandle } from '@/lib/social-handle'
+
+// Reel/short/tiktok: se link_media_1 punta a un video vero (mp4/webm/mov) lo
+// renderizziamo con <video autoplay muted loop>. Se invece sono solo immagini
+// (comune: il video finale non è stato ancora composto), le facciamo scorrere
+// automaticamente come slideshow — così il cliente capisce che tutte le foto
+// caricate andranno nel reel finale.
+function isVideoUrl(url: string | null | undefined): boolean {
+  if (!url) return false
+  const clean = url.split('?')[0].toLowerCase()
+  return clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.mov') || clean.endsWith('.m4v')
+}
+
+function ReelPlayer({ imgs, handle, caption, hook, hashtag, aspect, canale, formato, canaleIcon }: {
+  imgs: string[]
+  handle: string
+  caption: string | null | undefined
+  hook: string | null | undefined
+  hashtag: string | null | undefined
+  aspect: string
+  canale: string
+  formato: string
+  canaleIcon: string
+}) {
+  const videoUrl = useMemo(() => imgs.find(isVideoUrl), [imgs])
+  const stills = useMemo(() => imgs.filter(u => !isVideoUrl(u)), [imgs])
+  const total = Math.max(1, stills.length)
+  const [index, setIndex] = useState(0)
+  const [playing, setPlaying] = useState(true)
+  const [progress, setProgress] = useState(0)
+  const PER_SLIDE_MS = 2600
+
+  // Slideshow autoplay per multipli still (mock reel). Il video vero non serve
+  // slideshow — lo gestisce l'elemento <video> con loop.
+  useEffect(() => {
+    if (videoUrl || total < 2 || !playing) return
+    const start = Date.now()
+    const tick = setInterval(() => {
+      const elapsed = Date.now() - start
+      const p = (elapsed % PER_SLIDE_MS) / PER_SLIDE_MS
+      setProgress(p)
+      if (elapsed > 0 && Math.floor(elapsed / PER_SLIDE_MS) !== Math.floor((elapsed - 60) / PER_SLIDE_MS)) {
+        setIndex(i => (i + 1) % total)
+      }
+    }, 60)
+    return () => clearInterval(tick)
+  }, [videoUrl, total, playing, index])
+
+  const currentStill = stills[index]
+
+  return (
+    <div className="max-w-[280px] mx-auto">
+      <div className={`relative ${aspect} bg-black rounded-2xl overflow-hidden shadow-xl`}>
+        {/* Media principale */}
+        {videoUrl ? (
+          <video
+            src={videoUrl}
+            className="w-full h-full object-cover"
+            autoPlay
+            muted
+            loop
+            playsInline
+            poster={stills[0]}
+          />
+        ) : currentStill ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={currentStill} alt="" className="w-full h-full object-cover transition-opacity duration-300" />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-5xl">{canaleIcon}</div>
+        )}
+
+        {/* Progress bar segmentata (IG stories/reels style) */}
+        {total > 1 && !videoUrl && (
+          <div className="absolute top-2 left-2 right-2 flex gap-1 z-10">
+            {stills.map((_, i) => (
+              <div key={i} className="flex-1 h-0.5 rounded-full bg-white/30 overflow-hidden">
+                <div
+                  className="h-full bg-white rounded-full transition-[width] duration-100 ease-linear"
+                  style={{ width: i < index ? '100%' : i === index ? `${Math.round(progress * 100)}%` : '0%' }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Overlay gradient + top bar */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/70 pointer-events-none" />
+        <div className={`absolute ${total > 1 && !videoUrl ? 'top-5' : 'top-3'} left-3 right-3 flex items-center justify-between text-white text-xs z-10`}>
+          <span className="font-semibold drop-shadow">{handle}</span>
+          <div className="flex items-center gap-2">
+            <Volume2 className="w-4 h-4 drop-shadow" />
+            <span className="text-[10px] uppercase tracking-wide font-bold bg-white/20 backdrop-blur-sm px-1.5 py-0.5 rounded">
+              {videoUrl ? 'Video' : 'Reel'}
+            </span>
+          </div>
+        </div>
+
+        {/* Play/pause centrale (solo per slideshow still) */}
+        {!videoUrl && total > 1 && (
+          <button
+            type="button"
+            onClick={() => setPlaying(p => !p)}
+            aria-label={playing ? 'Pausa' : 'Riproduci'}
+            className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 focus:opacity-100 transition-opacity z-10"
+          >
+            <span className="w-14 h-14 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center text-white">
+              {playing ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 translate-x-0.5" />}
+            </span>
+          </button>
+        )}
+
+        {/* Solo 1 still e nessun video: badge chiaro che è anteprima statica */}
+        {!videoUrl && total === 1 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="w-16 h-16 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center text-white shadow-2xl">
+              <Play className="w-7 h-7 translate-x-0.5" />
+            </span>
+          </div>
+        )}
+
+        {/* Caption sovrapposta in fondo */}
+        <div className="absolute bottom-3 left-3 right-12 text-white text-xs z-10">
+          <p className="font-semibold mb-1 drop-shadow">{handle}</p>
+          <p className="line-clamp-3 leading-snug drop-shadow">{caption ?? hook}</p>
+          {hashtag && <p className="text-[10px] opacity-90 mt-1 truncate drop-shadow">{hashtag}</p>}
+          <p className="text-[10px] mt-1.5 flex items-center gap-1 opacity-90">
+            <Music2 className="w-3 h-3" /> audio originale · {handle}
+          </p>
+        </div>
+
+        {/* Sidebar azioni */}
+        <div className="absolute right-2 bottom-24 flex flex-col gap-3.5 items-center text-white z-10">
+          <div className="flex flex-col items-center">
+            <Heart className="w-6 h-6 drop-shadow" />
+            <span className="text-[9px] font-semibold mt-0.5 drop-shadow">1.2K</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <MessageCircle className="w-6 h-6 drop-shadow" />
+            <span className="text-[9px] font-semibold mt-0.5 drop-shadow">48</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <Send className="w-6 h-6 drop-shadow" />
+          </div>
+        </div>
+      </div>
+      <p className="text-center text-xs text-gray-400 mt-2">
+        Preview {canale} · {formato}
+        {!videoUrl && total > 1 && ` · ${total} scene`}
+        {!videoUrl && total === 1 && ' · anteprima statica'}
+      </p>
+    </div>
+  )
+}
 
 // Galleria carosello IG-style: swipe orizzontale + frecce cliccabili +
 // contatore "1/N" in alto + dots indicator centrati sotto le azioni.
@@ -232,38 +384,21 @@ export default function PostPreview({ c, brand }: { c: Contenuto; brand?: BrandH
     )
   }
 
-  // Layout TikTok/Reel/Short — verticale fullscreen
+  // Layout TikTok/Reel/Short — verticale fullscreen con player video o slideshow foto.
   if (c.formato === 'reel' || c.formato === 'short' || c.canale === 'tiktok') {
+    const media = [c.link_media_1, c.link_media_2, c.link_media_3, c.link_media_4, c.link_media_5, c.link_media_6, c.link_media_7].filter(Boolean) as string[]
     return (
-      <div className="max-w-[280px] mx-auto">
-        <div className={`relative ${aspect} bg-black rounded-2xl overflow-hidden shadow-xl`}>
-          {c.link_media_1 ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={c.link_media_1} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-5xl">{CANALE_ICON[c.canale]}</div>
-          )}
-          {/* Overlay player */}
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/70" />
-          <div className="absolute top-3 left-3 right-3 flex items-center justify-between text-white text-xs">
-            <span className="font-semibold">{handle}</span>
-            <Play className="w-4 h-4" />
-          </div>
-          {/* Caption sovrapposta */}
-          <div className="absolute bottom-3 left-3 right-12 text-white text-xs">
-            <p className="font-semibold mb-1">{handle}</p>
-            <p className="line-clamp-3 leading-snug">{c.caption ?? c.hook}</p>
-            <p className="text-[10px] opacity-80 mt-1 truncate">{c.hashtag}</p>
-          </div>
-          {/* Sidebar azioni */}
-          <div className="absolute right-2 bottom-16 flex flex-col gap-3 items-center text-white">
-            <Heart className="w-6 h-6" />
-            <MessageCircle className="w-6 h-6" />
-            <Send className="w-6 h-6" />
-          </div>
-        </div>
-        <p className="text-center text-xs text-gray-400 mt-2">Preview {c.canale} · {c.formato}</p>
-      </div>
+      <ReelPlayer
+        imgs={media}
+        handle={handle}
+        caption={c.caption}
+        hook={c.hook}
+        hashtag={c.hashtag}
+        aspect={aspect}
+        canale={c.canale}
+        formato={c.formato}
+        canaleIcon={CANALE_ICON[c.canale] || '📸'}
+      />
     )
   }
 
