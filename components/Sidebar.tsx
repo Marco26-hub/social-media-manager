@@ -29,33 +29,34 @@ const SECTIONS: NavSection[] = [
       href: `/dashboard/social/${p.key}`,
       label: p.nome,
       emoji: p.emoji,
+      adminOnly: true,
     })),
   },
   {
     title: 'STRUMENTI',
     items: [
-      { href: '/dashboard/piano',  label: 'Piano editoriale', icon: Target },
-      { href: '/dashboard/blog',   label: 'Blog SEO (locale)', icon: PenLine },
-      { href: '/dashboard/ads',    label: 'Campagne Ads',     icon: TrendingUp },
-      { href: '/dashboard/leads',  label: 'Leads',            icon: Magnet },
-      { href: '/dashboard/seo',    label: 'SEO + GEO Audit',  icon: Search },
+      { href: '/dashboard/piano',  label: 'Piano editoriale', icon: Target, adminOnly: true },
+      { href: '/dashboard/blog',   label: 'Blog SEO (locale)', icon: PenLine, adminOnly: true },
+      { href: '/dashboard/ads',    label: 'Campagne Ads',     icon: TrendingUp, adminOnly: true },
+      { href: '/dashboard/leads',  label: 'Leads',            icon: Magnet, adminOnly: true },
+      { href: '/dashboard/seo',    label: 'SEO + GEO Audit',  icon: Search, adminOnly: true },
       { href: '/dashboard/analytics', label: 'Analytics',   icon: Activity },
       { href: '/dashboard/report', label: 'Report',        icon: BarChart3 },
-      { href: '/dashboard/log',    label: 'Log + Report',  icon: FileText },
-      { href: '/dashboard/competitor', label: 'Competitor',   icon: Eye },
+      { href: '/dashboard/log',    label: 'Log + Report',  icon: FileText, adminOnly: true },
+      { href: '/dashboard/competitor', label: 'Competitor',   icon: Eye, adminOnly: true },
     ],
   },
   {
     title: 'GESTIONE',
     items: [
-      { href: '/dashboard/brand',       label: 'Profilo Brand',  icon: Sparkles },
-      { href: '/dashboard/clienti',     label: 'Clienti',       icon: Users },
+      { href: '/dashboard/brand',       label: 'Profilo Brand',  icon: Sparkles, adminOnly: true },
+      { href: '/dashboard/clienti',     label: 'Clienti',       icon: Users, adminOnly: true },
       { href: '/dashboard/registrazioni', label: 'Registrazioni', icon: UserCheck, adminOnly: true },
       { href: '/dashboard/pagamenti',   label: 'Pagamenti',     icon: CreditCard, adminOnly: true },
-      { href: '/dashboard/onboarding',  label: 'Onboarding',    icon: UserPlus },
-      { href: '/dashboard/prodotti',    label: 'Prodotti',      icon: Package },
-      { href: '/dashboard/setup',       label: 'Setup Produzione', icon: ShieldCheck },
-      { href: '/dashboard/settings', label: 'Impostazioni',  icon: Settings },
+      { href: '/dashboard/onboarding',  label: 'Onboarding',    icon: UserPlus, adminOnly: true },
+      { href: '/dashboard/prodotti',    label: 'Prodotti',      icon: Package, adminOnly: true },
+      { href: '/dashboard/setup',       label: 'Setup Produzione', icon: ShieldCheck, adminOnly: true },
+      { href: '/dashboard/settings', label: 'Impostazioni',  icon: Settings, adminOnly: true },
       { href: '/',                   label: 'Vedi landing',  icon: Globe, external: true },
     ],
   },
@@ -131,43 +132,47 @@ export default function Sidebar() {
 
         {/* Nav con sezioni */}
         <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
-          {SECTIONS.map((section, idx) => (
-            <div key={idx}>
-              {section.title && (
-                <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1.5 px-3">
-                  {section.title}
-                </p>
-              )}
-              <div className="space-y-0.5">
-                {section.items.filter(item => !item.adminOnly || isAdmin).map(item => {
-                  const active = !item.external && (
-                    pathname === item.href ||
-                    (item.href !== '/dashboard' && item.href !== '/' && pathname.startsWith(item.href))
-                  )
-                  const Icon = item.icon
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      {...(item.external ? { target: '_blank', rel: 'noopener' } : {})}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                        active
-                          ? 'bg-brand-600 text-white font-medium'
-                          : 'text-gray-400 hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      {item.emoji ? (
-                        <span className="w-4 text-center text-base leading-none">{item.emoji}</span>
-                      ) : Icon ? (
-                        <Icon className="w-4 h-4 flex-shrink-0" />
-                      ) : null}
-                      <span className="truncate">{item.label}</span>
-                    </Link>
-                  )
-                })}
+          {SECTIONS.map((section, idx) => {
+            const visibleItems = section.items.filter(item => !item.adminOnly || isAdmin)
+            if (!visibleItems.length) return null
+            return (
+              <div key={idx}>
+                {section.title && (
+                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-1.5 px-3">
+                    {section.title}
+                  </p>
+                )}
+                <div className="space-y-0.5">
+                  {visibleItems.map(item => {
+                    const active = !item.external && (
+                      pathname === item.href ||
+                      (item.href !== '/dashboard' && item.href !== '/' && pathname.startsWith(item.href))
+                    )
+                    const Icon = item.icon
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        {...(item.external ? { target: '_blank', rel: 'noopener' } : {})}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                          active
+                            ? 'bg-brand-600 text-white font-medium'
+                            : 'text-gray-400 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        {item.emoji ? (
+                          <span className="w-4 text-center text-base leading-none">{item.emoji}</span>
+                        ) : Icon ? (
+                          <Icon className="w-4 h-4 flex-shrink-0" />
+                        ) : null}
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </nav>
 
         {/* Logout */}

@@ -91,6 +91,29 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
+  // Role-based dashboard protection: il cliente non-admin vede SOLO i risultati
+  // e i pagamenti (overview, il-mio-piano, calendario, analytics, report).
+  // Le pagine generative/gestione (social, piano, blog, ads, seo, competitor,
+  // brand, clienti, prodotti, setup, settings, onboarding, log, registrazioni,
+  // pagamenti admin) sono riservate all'admin — sono i servizi che vendiamo.
+  if (isDashboard && token) {
+    const ruolo = (token.ruolo as string | undefined) || 'user'
+    const isAdmin = ruolo === 'admin' || ruolo === 'super_admin'
+    if (!isAdmin) {
+      const CLIENTE_ALLOWED = [
+        '/dashboard/il-mio-piano',
+        '/dashboard/calendario',
+        '/dashboard/analytics',
+        '/dashboard/report',
+      ]
+      const isOverview = pathname === '/dashboard'
+      const isAllowed = CLIENTE_ALLOWED.some(p => pathname.startsWith(p))
+      if (!isOverview && !isAllowed) {
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
+    }
+  }
+
   if (isAuthPage && token) {
     return NextResponse.redirect(new URL('/dashboard/clienti', request.url))
   }
