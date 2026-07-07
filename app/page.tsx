@@ -3,6 +3,7 @@ import { PLATFORM_LIST } from '@/lib/social-config'
 import TiltCard from '@/components/TiltCard'
 import RevealOnScroll from '@/components/RevealOnScroll'
 import CountUp from '@/components/CountUp'
+import BackToTop from '@/components/BackToTop'
 import { PACCHETTI } from '@/lib/pacchetti'
 import {
   ArrowRight,
@@ -483,6 +484,7 @@ export default function LandingPage() {
       </footer>
 
       <RevealOnScroll />
+      <BackToTop />
     </main>
   )
 }
