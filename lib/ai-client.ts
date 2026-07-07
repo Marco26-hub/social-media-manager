@@ -1,6 +1,12 @@
 'use client'
 
-export const DEFAULT_AI_MODEL = 'meta-llama/llama-3.3-70b-instruct:free'
+export const DEFAULT_AI_MODEL = 'gemini-2.5-flash'
+export const DEFAULT_OPENROUTER_MODEL = 'google/gemini-2.5-flash'
+export const DEFAULT_OPENCODE_MODEL = 'opencode/deepseek-v4-flash-free'
+
+function needsOpenRouterKey(model: string) {
+  return !model.startsWith('gemini-') && !model.startsWith('opencode/') && !model.startsWith('ollama/') && !model.startsWith('claude-')
+}
 
 export function readAISettings() {
   if (typeof window === 'undefined') {
@@ -12,10 +18,20 @@ export function readAISettings() {
     }
   }
 
-  const model = localStorage.getItem('ai_model') || DEFAULT_AI_MODEL
+  const savedModel = localStorage.getItem('ai_model') || ''
   const openrouterKey = localStorage.getItem('openrouter_key')?.trim()
   const geminiKey = localStorage.getItem('gemini_key')?.trim()
   const opencodeKey = localStorage.getItem('opencode_key')?.trim()
+  let model = savedModel || (geminiKey ? DEFAULT_AI_MODEL : (openrouterKey ? DEFAULT_OPENROUTER_MODEL : DEFAULT_AI_MODEL))
+
+  // Se l'utente aveva salvato un modello OpenRouter ma la key non c'è più,
+  // non far fallire la generazione sul provider sbagliato: passa al primo
+  // provider realmente disponibile lato client.
+  if (needsOpenRouterKey(model) && !openrouterKey) {
+    if (geminiKey) model = DEFAULT_AI_MODEL
+    else if (opencodeKey) model = DEFAULT_OPENCODE_MODEL
+  }
+
   return {
     model,
     openrouter_key: openrouterKey || undefined,

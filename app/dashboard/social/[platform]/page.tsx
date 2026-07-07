@@ -12,7 +12,7 @@ import ConfirmModal from '@/components/ConfirmModal'
 import AIModelSelector from '@/components/AIModelSelector'
 import type { Contenuto } from '@/lib/types'
 import { useActiveClienteId } from '@/lib/tenant/client'
-import { readAISettings, readApiError } from '@/lib/ai-client'
+import { DEFAULT_AI_MODEL, readAISettings, readApiError } from '@/lib/ai-client'
 import { useGeneration } from '@/components/GenerationProvider'
 import { useRuntimeDemo } from '@/lib/demo-client'
 import { CONTENT_QUALITY_OPTIONS, type ContentQuality } from '@/lib/content-quality'
@@ -49,7 +49,7 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
   const [selectedFormats, setSelectedFormats] = useState<Set<string>>(new Set())
   const [pendingBatch, setPendingBatch] = useState(false)
   const [crossCanali, setCrossCanali] = useState<Set<string>>(new Set())
-  const [aiModel, setAiModel] = useState('meta-llama/llama-3.3-70b-instruct:free')
+  const [aiModel, setAiModel] = useState(DEFAULT_AI_MODEL)
   const [quality, setQuality] = useState<QualitySelection>('auto')
   const [assets, setAssets] = useState<UploadedAsset[]>([])
   const [assetUrl, setAssetUrl] = useState('')
@@ -62,7 +62,7 @@ function PlatformContent({ config }: { config: typeof PLATFORMS[PlatformKey] }) 
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setAiModel(localStorage.getItem('ai_model') ?? 'meta-llama/llama-3.3-70b-instruct:free')
+      setAiModel(readAISettings().model || DEFAULT_AI_MODEL)
     }
   }, [])
 

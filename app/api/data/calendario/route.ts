@@ -104,32 +104,53 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     const canale = searchParams.get('canale')
+    const formato = searchParams.get('formato')
+    const obiettivo = searchParams.get('obiettivo')
+    const search = searchParams.get('q')?.trim()
     const limit = parseInt(searchParams.get('limit') || '50')
 
     if (isDemo() || !dbReady()) {
       let rows = demoContenuti
       if (status && status !== 'tutti') rows = rows.filter((item) => item.status === status)
       if (canale && canale !== 'tutti') rows = rows.filter((item) => item.canale === canale)
+      if (formato && formato !== 'tutti') rows = rows.filter((item) => item.formato === formato)
+      if (obiettivo && obiettivo !== 'tutti') rows = rows.filter((item) => item.obiettivo === obiettivo)
+      if (search) {
+        const needle = search.toLowerCase()
+        rows = rows.filter((item) => [
+          item.id_contenuto, item.hook, item.caption, item.tema, item.nome_prodotto,
+        ].some(value => String(value || '').toLowerCase().includes(needle)))
+      }
       return NextResponse.json(rows.slice(0, limit))
     }
 
     const cid = await requireClienteId()
-    let query: string
     const params: unknown[] = [cid]
-
-    if (status && status !== 'tutti' && canale && canale !== 'tutti') {
-      query = 'SELECT * FROM calendario WHERE cliente_id = $1 AND status = $2 AND canale = $3 ORDER BY data_pubblicazione ASC LIMIT $4'
-      params.push(status, canale, limit)
-    } else if (status && status !== 'tutti') {
-      query = 'SELECT * FROM calendario WHERE cliente_id = $1 AND status = $2 ORDER BY data_pubblicazione ASC LIMIT $3'
-      params.push(status, limit)
-    } else if (canale && canale !== 'tutti') {
-      query = 'SELECT * FROM calendario WHERE cliente_id = $1 AND canale = $2 ORDER BY data_pubblicazione ASC LIMIT $3'
-      params.push(canale, limit)
-    } else {
-      query = 'SELECT * FROM calendario WHERE cliente_id = $1 ORDER BY data_pubblicazione ASC LIMIT $2'
-      params.push(limit)
+    const where = ['cliente_id = $1']
+    const addFilter = (column: string, value: string | null) => {
+      if (!value || value === 'tutti') return
+      params.push(value)
+      where.push(`${column} = $${params.length}`)
     }
+    addFilter('status', status)
+    addFilter('canale', canale)
+    addFilter('formato', formato)
+    addFilter('obiettivo', obiettivo)
+    if (search) {
+      params.push(`%${search}%`)
+      where.push(`(
+        id_contenuto ILIKE $${params.length}
+        OR hook ILIKE $${params.length}
+        OR caption ILIKE $${params.length}
+        OR tema ILIKE $${params.length}
+        OR nome_prodotto ILIKE $${params.length}
+      )`)
+    }
+    params.push(limit)
+    const query = `SELECT * FROM calendario
+      WHERE ${where.join(' AND ')}
+      ORDER BY data_pubblicazione ASC, ora_pubblicazione ASC
+      LIMIT $${params.length}`
     const rows = await q(query, params)
     return NextResponse.json(rows)
   } catch (e) {

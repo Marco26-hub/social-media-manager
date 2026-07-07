@@ -6,6 +6,7 @@ import { getClientGenerationContext } from '@/lib/client-context'
 import { generateBlogLocal } from '@/lib/blog-pipeline'
 import { safeImageUrl } from '@/lib/blog-render'
 import { ollamaBaseUrl } from '@/lib/local-only'
+import { upsertBlogCalendarEntry } from '@/lib/blog-calendar'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // pipeline locale multi-step può durare alcuni minuti
@@ -104,6 +105,23 @@ export async function POST(request: Request) {
           cover, 'AIM Locale', 'DA_APPROVARE',
         ],
       )
+      const calendarioId = await upsertBlogCalendarEntry({
+        clienteId: effectiveClienteId,
+        slug: article.slug,
+        title: article.h1 || article.meta_title,
+        intro: article.intro,
+        metaDescription: article.meta_description,
+        cta: article.cta_finale,
+        coverUrl: cover,
+        tema: String(tema).trim(),
+      })
+      return NextResponse.json({
+        ok: true,
+        generated_by: `${writeModel}${researchModel !== writeModel ? ` + ${researchModel}` : ''} (locale)`,
+        steps,
+        calendar_id: calendarioId,
+        article: { ...article, immagine_cover: cover },
+      })
     }
 
     return NextResponse.json({

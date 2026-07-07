@@ -8,6 +8,7 @@ import { getClientGenerationContext } from '@/lib/client-context'
 import { buildGenerationOptimizationCyclePrompt } from '@/lib/production-cycle'
 import { PRO_COPY_STANDARDS, SEO_GEO_STANDARDS } from '@/lib/prompt-standards'
 import { safeImageUrl } from '@/lib/blog-render'
+import { upsertBlogCalendarEntry } from '@/lib/blog-calendar'
 
 const PROMPT = `Sei un content writer SEO senior per brand fashion e-commerce.
 Scrivi articolo blog 800-1200 parole in italiano, ottimizzato per SEO e GEO (AI search).
@@ -158,6 +159,7 @@ export async function POST(request: Request) {
 
     // ON CONFLICT: unique(cliente_id, slug) → rigenerare lo stesso tema aggiorna
     // la bozza esistente invece di crashare con duplicate key.
+    const slug = (parsed.slug as string) || `articolo-${Date.now()}`
     await q(
       `INSERT INTO blog_articoli (
         cliente_id, slug, meta_title, meta_description, h1, intro, sezioni, faq,
@@ -171,7 +173,7 @@ export async function POST(request: Request) {
         immagine_cover = EXCLUDED.immagine_cover, status = EXCLUDED.status, updated_at = now()`,
       [
         effectiveClienteId,
-        (parsed.slug as string) || `articolo-${Date.now()}`,
+        slug,
         (parsed.meta_title as string) || '',
         (parsed.meta_description as string) || null,
         (parsed.h1 as string) || '',
@@ -187,8 +189,18 @@ export async function POST(request: Request) {
         (parsed.status as string) || 'DA_APPROVARE',
       ],
     )
+    const calendarioId = await upsertBlogCalendarEntry({
+      clienteId: effectiveClienteId,
+      slug,
+      title: String(parsed.h1 || parsed.meta_title || tema || 'Articolo blog'),
+      intro: typeof parsed.intro === 'string' ? parsed.intro : null,
+      metaDescription: typeof parsed.meta_description === 'string' ? parsed.meta_description : null,
+      cta: typeof parsed.cta_finale === 'string' ? parsed.cta_finale : null,
+      coverUrl,
+      tema: typeof tema === 'string' ? tema : null,
+    })
 
-    return NextResponse.json({ ok: true, slug: parsed.slug })
+    return NextResponse.json({ ok: true, slug, calendar_id: calendarioId })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Errore generazione blog'
     return NextResponse.json({ error: msg }, { status: 500 })

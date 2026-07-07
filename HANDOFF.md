@@ -2,7 +2,7 @@
 
 > Documento per AI agent multipli (Claude CLI, Cursor/Cline, Codex). Lavoriamo come un team unificato.
 
-**Data ultimo aggiornamento**: 2026-07-07 sera (Claude CLI audit + Codex continuation: HIGH publish/Stripe/health chiusi in working tree, build verde)
+**Data ultimo aggiornamento**: 2026-07-07 notte (Codex: fix calendario/blog/AI key da screenshot, build verde)
 **Progetto**: Social Automation — SaaS social media management per agenzie
 **Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Gemini/OpenRouter/Anthropic/OpenCode/Ollama)
 **Percorso locale**: `/Users/md/Documents/social_automation_v2`
@@ -41,6 +41,12 @@ Commit atomici su `main`, build+lint verdi ad ogni step.
 - **Dashboard cliente #28**: `app/api/data/il-mio-piano/route.ts` normalizza `timestamptz` Neon sia come `Date` sia come stringa, quindi rinnovo e ultimo pagamento non spariscono più in UI.
 - **Health #21**: `/api/system/health` espone `checks.stripeSecret`, `checks.stripeWebhook`, `checks.publishEnabled` e richiede come latest migration `025_stripe_webhook_events.sql`.
 - **Validazioni Codex**: `git diff --check` ✅, `npm run lint` ✅ (0 errori, 7 warning storici), `npm run build` ✅, `npm run migrate:dry` ✅ (vede 024 + 025).
+
+### ✅ Fix screenshot 2026-07-07 notte — calendario/blog/AI
+- **Calendario leggibile**: `/dashboard/calendario` ora mostra data + orario in formato umano su ogni card, include canale Blog e aggiunge filtri per ricerca, canale, formato, categoria/obiettivo e stato. API `/api/data/calendario` supporta `formato`, `obiettivo`, `q` e ordina per data+ora.
+- **Blog nel calendario**: sia `/api/generate/blog-local` sia `/api/generate/blog` salvano/aggiornano una riga `calendario` (`canale='blog'`, `formato='articolo'`, `status='DA_APPROVARE'`) tramite `lib/blog-calendar.ts`, così l'articolo generato compare davvero nel calendario oltre che in `blog_articoli`.
+- **Default AI anti-errore OpenRouter**: `AIModelSelector` e `readAISettings()` non restano più su modelli OpenRouter senza key; default a Gemini nativo e auto-heal del modello salvato se manca `openrouter_key`. OpenRouter resta opzionale.
+- **Validazioni**: `git diff --check` ✅, `npm run lint` ✅ (0 errori, 7 warning storici), `npm run build` ✅.
 
 ### 🔴 HIGH ancora aperti dopo questa continuation
 - **Publish #4 da riverificare**: `resolveBlotatoTarget()` già rifiuta Facebook senza Page e imposta privacy TikTok, ma va verificato contro contratto reale Blotato.

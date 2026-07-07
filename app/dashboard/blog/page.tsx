@@ -188,7 +188,7 @@ export default function BlogPage() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
             <CheckCircle2 className="w-5 h-5" />
-            <span>Articolo pronto e salvato in <strong>bozze</strong> (da approvare). Scritto da {genBy}.</span>
+            <span>Articolo pronto e salvato in <strong>Blog</strong> + <strong>Calendario</strong> (DA_APPROVARE). Scritto da {genBy}.</span>
           </div>
 
           {/* Scheda SEO */}

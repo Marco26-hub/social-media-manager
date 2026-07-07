@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import StatusBadge from '@/components/StatusBadge'
 import type { Contenuto, Status } from '@/lib/types'
-import { CheckCircle, XCircle, RefreshCw, Eye, Info, ChevronDown, Filter, Sparkles, Share2, Download, Trash2, AlertTriangle, Wand2, Film, Camera, ImagePlus } from 'lucide-react'
+import { CheckCircle, XCircle, RefreshCw, Eye, Info, ChevronDown, Filter, Sparkles, Share2, Download, Trash2, AlertTriangle, Wand2, Film, Camera, ImagePlus, Search } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { demoContenuti } from '@/lib/demo-data'
@@ -13,10 +13,21 @@ import { readClienteId } from '@/lib/use-data'
 import { readAISettings, readApiError } from '@/lib/ai-client'
 import { useRuntimeDemo } from '@/lib/demo-client'
 
-const CANALI = ['tutti','instagram','facebook','tiktok','pinterest','linkedin','threads','x','youtube_shorts']
+const CANALI = ['tutti','instagram','facebook','tiktok','pinterest','linkedin','threads','x','youtube_shorts','blog']
+const FORMATI = ['tutti','post','carousel','reel','story','pin','short','video','articolo']
+const CATEGORIE = [
+  ['tutti', 'Tutte le categorie'],
+  ['vendita', 'Vendita'],
+  ['awareness', 'Awareness'],
+  ['community', 'Community'],
+  ['educazione', 'Educazione'],
+  ['ispirazione', 'Ispirazione'],
+  ['trending', 'Trending'],
+  ['seo', 'SEO / Blog'],
+]
 const STATI: Status[] = ['DA_APPROVARE','BOZZA','IDEA','APPROVATO','IN_PUBBLICAZIONE','PUBBLICATO','ERRORE','ERRORE_MANUALE']
 const CANALE_ICON: Record<string, string> = {
-  instagram: '📸', facebook: '🔵', tiktok: '🎵', pinterest: '📌', linkedin: '💼', threads: '🧵', x: '✖️', youtube_shorts: '▶️'
+  instagram: '📸', facebook: '🔵', tiktok: '🎵', pinterest: '📌', linkedin: '💼', threads: '🧵', x: '✖️', youtube_shorts: '▶️', blog: '📝'
 }
 
 function asText(value: unknown) {
@@ -27,6 +38,28 @@ function asText(value: unknown) {
 
 function hasText(value: unknown) {
   return asText(value).trim().length > 0
+}
+
+function formatDateLabel(date: string) {
+  if (!date) return 'Data non impostata'
+  const parsed = new Date(`${date}T12:00:00`)
+  if (Number.isNaN(parsed.getTime())) return date
+  return new Intl.DateTimeFormat('it-IT', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(parsed)
+}
+
+function formatTimeLabel(time?: string | null) {
+  const value = (time || '').slice(0, 5)
+  return value || 'orario non impostato'
+}
+
+function formatCategoryLabel(value?: string | null) {
+  if (!value) return 'Senza categoria'
+  return CATEGORIE.find(([id]) => id === value)?.[1] || value.replace(/_/g, ' ')
 }
 
 export default function CalendarioPage() {
@@ -44,6 +77,9 @@ function CalendarioInner() {
   const [selected, setSelected]     = useState<Contenuto | null>(null)
   const [filterStatus, setFilter]   = useState<string>(searchParams.get('filter') ?? 'DA_APPROVARE')
   const [filterCanale, setCanale]   = useState('tutti')
+  const [filterFormato, setFormato] = useState('tutti')
+  const [filterCategoria, setCategoria] = useState('tutti')
+  const [searchText, setSearchText] = useState('')
   const [saving, setSaving]         = useState<string | null>(null)
   const [scoring, setScoring]       = useState<string | null>(null)
   const [scoreError, setScoreError] = useState<string | null>(null)
@@ -92,7 +128,7 @@ function CalendarioInner() {
   // Cambio filtro/cliente → azzera la selezione multipla (gli id mostrati cambiano).
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [filterStatus, filterCanale, clienteId])
+  }, [filterStatus, filterCanale, filterFormato, filterCategoria, searchText, clienteId])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -100,6 +136,14 @@ function CalendarioInner() {
       let filtered = demoData
       if (filterStatus !== 'tutti') filtered = filtered.filter(c => c.status === filterStatus)
       if (filterCanale !== 'tutti') filtered = filtered.filter(c => c.canale === filterCanale)
+      if (filterFormato !== 'tutti') filtered = filtered.filter(c => c.formato === filterFormato)
+      if (filterCategoria !== 'tutti') filtered = filtered.filter(c => c.obiettivo === filterCategoria)
+      if (searchText.trim()) {
+        const needle = searchText.trim().toLowerCase()
+        filtered = filtered.filter(c => [
+          c.id_contenuto, c.hook, c.caption, c.tema, c.nome_prodotto,
+        ].some(value => String(value || '').toLowerCase().includes(needle)))
+      }
       setContenuti(filtered)
       setLoading(false)
       return
@@ -108,6 +152,10 @@ function CalendarioInner() {
     if (clienteId) params.set('cliente_id', clienteId)
     if (filterStatus !== 'tutti') params.set('status', filterStatus)
     if (filterCanale !== 'tutti') params.set('canale', filterCanale)
+    if (filterFormato !== 'tutti') params.set('formato', filterFormato)
+    if (filterCategoria !== 'tutti') params.set('obiettivo', filterCategoria)
+    if (searchText.trim()) params.set('q', searchText.trim())
+    params.set('limit', '200')
 
     setLoadError(null)
     try {
@@ -125,7 +173,7 @@ function CalendarioInner() {
       setLoadError((e as Error)?.message || 'Errore di rete nel caricamento dei contenuti')
     }
     setLoading(false)
-  }, [filterStatus, filterCanale, demo, demoData, clienteId])
+  }, [filterStatus, filterCanale, filterFormato, filterCategoria, searchText, demo, demoData, clienteId])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -610,33 +658,54 @@ function CalendarioInner() {
       )}
 
       {/* Filtri */}
-      <div className="flex flex-wrap gap-2 md:gap-3 mb-4 md:mb-6">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-400" />
-          <span className="text-sm text-gray-500">Status:</span>
+      <div className="card p-3 md:p-4 mb-4 md:mb-6 bg-white/90">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-gray-400" />
+            <span className="text-sm font-semibold text-gray-700">Filtra contenuti</span>
+          </div>
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              placeholder="Cerca ID, hook, tema o prodotto..."
+              className="pl-8 pr-3 py-2 text-xs border border-gray-200 rounded-lg bg-white text-gray-700 w-full focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+          {[
+            { label: 'Canale', value: filterCanale, setter: setCanale, options: CANALI.map(c => [c, c === 'tutti' ? 'Tutti i canali' : `${CANALE_ICON[c] || ''} ${c}`]) },
+            { label: 'Formato', value: filterFormato, setter: setFormato, options: FORMATI.map(f => [f, f === 'tutti' ? 'Tutti i formati' : f]) },
+            { label: 'Categoria', value: filterCategoria, setter: setCategoria, options: CATEGORIE },
+          ].map(filter => (
+            <label key={filter.label} className="relative">
+              <span className="sr-only">{filter.label}</span>
+              <select
+                value={filter.value}
+                onChange={e => filter.setter(e.target.value)}
+                className="pl-3 pr-8 py-2 text-xs border border-gray-200 rounded-lg bg-white text-gray-600 appearance-none focus:outline-none focus:ring-2 focus:ring-brand-500 min-w-[140px]"
+              >
+                {filter.options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+              <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </label>
+          ))}
         </div>
-        {['tutti', ...STATI].map(s => (
-          <button
-            key={s}
-            onClick={() => setFilter(s)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              filterStatus === s
-                ? 'bg-brand-600 text-white'
-                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            {s === 'tutti' ? 'Tutti' : s.replace('_',' ')}
-          </button>
-        ))}
-        <div className="relative">
-          <select
-            value={filterCanale}
-            onChange={e => setCanale(e.target.value)}
-            className="pl-3 pr-8 py-1.5 text-xs border border-gray-200 rounded-lg bg-white text-gray-600 appearance-none focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            {CANALI.map(c => <option key={c} value={c}>{c === 'tutti' ? 'Tutti i canali' : c}</option>)}
-          </select>
-          <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
+          <span className="text-xs text-gray-500 mr-1">Stato:</span>
+          {['tutti', ...STATI].map(s => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                filterStatus === s
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              {s === 'tutti' ? 'Tutti' : s.replace('_',' ')}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -782,12 +851,32 @@ function CalendarioInner() {
                     {c.quality_level && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-700 uppercase">{c.quality_level}</span>
                     )}
-                    <span className="text-xs text-gray-400">
-                      {CANALE_ICON[c.canale]} {c.canale} · {c.formato}
+                    <span className="text-xs text-gray-400 inline-flex items-center gap-1">
+                      <span>{CANALE_ICON[c.canale] ?? '📄'}</span>
+                      <span>{c.canale}</span>
+                      <span>·</span>
+                      <span>{c.formato}</span>
+                      {c.obiettivo && (
+                        <>
+                          <span>·</span>
+                          <span className="text-amber-700">{formatCategoryLabel(c.obiettivo)}</span>
+                        </>
+                      )}
                     </span>
-                    <span className="text-xs text-gray-400 ml-auto">
-                      {c.data_pubblicazione} {c.ora_pubblicazione?.slice(0,5)}
+                    <span className="text-xs text-gray-600 ml-auto inline-flex items-center gap-1.5 rounded-full bg-gray-50 border border-gray-200 px-2 py-1 font-medium">
+                      <span>{formatDateLabel(c.data_pubblicazione)}</span>
+                      <span className="text-gray-300">·</span>
+                      <span className="font-mono">{formatTimeLabel(c.ora_pubblicazione)}</span>
                     </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 border border-slate-200">{c.formato}</span>
+                    {c.obiettivo && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100">{formatCategoryLabel(c.obiettivo)}</span>
+                    )}
+                    {c.tema && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-100 truncate max-w-[220px]">{c.tema}</span>
+                    )}
                   </div>
                   {c.hook && <p className="text-sm font-medium text-gray-800 mb-0.5 truncate">{c.hook}</p>}
                   {c.caption && <p className="text-sm text-gray-500 truncate">{c.caption}</p>}
@@ -894,7 +983,9 @@ function CalendarioInner() {
             <div className="p-6 border-b flex items-center justify-between">
               <div>
                 <h2 className="font-bold text-gray-900">{selected.id_contenuto}</h2>
-                <p className="text-sm text-gray-500">{selected.canale} · {selected.formato} · {selected.data_pubblicazione}</p>
+                <p className="text-sm text-gray-500">
+                  {selected.canale} · {selected.formato} · {formatCategoryLabel(selected.obiettivo)} · {formatDateLabel(selected.data_pubblicazione)} alle {formatTimeLabel(selected.ora_pubblicazione)}
+                </p>
                 {selected.quality_level && (
                   <span className="inline-flex mt-2 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full bg-violet-100 text-violet-700">
                     Qualità {selected.quality_level}

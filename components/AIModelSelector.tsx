@@ -27,12 +27,10 @@ const TASK_LABELS: Record<Task, string> = {
   'blog-articolo': 'Blog SEO',
 }
 
-// Matrice QUALITÀ-FIRST: modelli premium via OpenRouter (crediti unici), coerenti
-// tra locale e cloud. Social usa Gemini 2.5 Flash (vision per le foto prodotto,
-// economico ad alto volume); i task analitici/scrittura pesante usano Claude
-// Sonnet 5 (miglior ragionamento e copy IT). Tutto routato su OpenRouter così i
-// costi restano su un solo account con stima chiara.
-const GEMINI_25 = 'google/gemini-2.5-flash'   // via OpenRouter: crediti tuoi, no rate-limit, vision, 65K output
+// Default qualità-first senza inciampare su OpenRouter: Gemini nativo usa la key
+// Google AI Studio (gratis) e vede le immagini prodotto. OpenRouter resta in
+// lista per chi ha crediti, ma non è più il default obbligato.
+const GEMINI_25 = 'gemini-2.5-flash'
 
 const TASK_RECOMMENDED: Record<Task, string> = {
   'contenuti-social': GEMINI_25,
@@ -51,9 +49,9 @@ const TASK_RECOMMENDED_CLOUD: Record<Task, string> = {
 
 // "Perché" mostrato in UI: spiega all'utente la logica della raccomandazione per task.
 const TASK_WHY: Record<Task, string> = {
-  'contenuti-social': 'Gemini 2.5 Flash via OpenRouter: vede le foto prodotto (vision), veloce, costo minimo per post ad alto volume.',
-  'piano-editoriale': 'Gemini 2.5 Flash: 1M contesto + 65K output → il JSON del piano non tronca. Via OpenRouter, no rate-limit.',
-  'seo-audit':        'Gemini 2.5 Flash: contesto 1M + output ampio per analisi lunghe. Via OpenRouter, crediti tuoi.',
+  'contenuti-social': 'Gemini 2.5 Flash nativo: vede le foto prodotto (vision), veloce, key Google gratuita. OpenRouter resta opzionale.',
+  'piano-editoriale': 'Gemini 2.5 Flash: 1M contesto + 65K output → il JSON del piano non tronca. Key Google gratuita.',
+  'seo-audit':        'Gemini 2.5 Flash: contesto 1M + output ampio per analisi lunghe. Per premium extra puoi scegliere Claude/OpenRouter.',
   'blog-articolo':    'Gemini 2.5 Flash: 65K output per articoli long-form senza troncamento. Per copy premium extra, Claude Sonnet 5 resta in lista.',
 }
 
@@ -117,9 +115,13 @@ const QUALITY_DOT: Record<string, string> = {
   medium: 'bg-gray-400',
 }
 
+function modelNeedsOpenRouterKey(model: string) {
+  return !model.startsWith('gemini-') && !model.startsWith('opencode/') && !model.startsWith('ollama/') && !model.startsWith('claude-')
+}
+
 export default function AIModelSelector({ task }: { task?: Task }) {
   const [open, setOpen] = useState(false)
-  const [selectedId, setSelectedId] = useState('meta-llama/llama-3.3-70b-instruct:free')
+  const [selectedId, setSelectedId] = useState(GEMINI_25)
   const [showKeyInput, setShowKeyInput] = useState(false)
   const [orKey, setOrKey] = useState('')
   const [savedKey, setSavedKey] = useState('')
@@ -139,7 +141,6 @@ export default function AIModelSelector({ task }: { task?: Task }) {
     if (typeof window === 'undefined') return
     // Default cloud-safe iniziale; il default locale-first si applica solo se siamo in locale
     // (gestito dall'effetto su localEnv più sotto), così il deploy cloud non parte rotto.
-    setSelectedId(localStorage.getItem('ai_model') || 'meta-llama/llama-3.3-70b-instruct:free')
     const key = localStorage.getItem('openrouter_key') || ''
     setSavedKey(key)
     setOrKey(key)
@@ -149,6 +150,10 @@ export default function AIModelSelector({ task }: { task?: Task }) {
     const ok = localStorage.getItem('opencode_key') || ''
     setSavedOpcKey(ok)
     setOpcKey(ok)
+    const storedModel = localStorage.getItem('ai_model') || ''
+    const safeModel = storedModel && modelNeedsOpenRouterKey(storedModel) && !key ? GEMINI_25 : (storedModel || GEMINI_25)
+    if (safeModel !== storedModel) localStorage.setItem('ai_model', safeModel)
+    setSelectedId(safeModel)
   }, [task])
 
   useEffect(() => {
