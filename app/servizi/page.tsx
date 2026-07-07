@@ -333,15 +333,41 @@ export default function ServiziPage() {
             </article>
           ))}
         </div>
-        <div className={styles.ctaActions} style={{ justifyContent: 'center', marginTop: '2rem' }}>
-          <a href={waLink('Ciao! Vorrei un preventivo per le consulenze legali e AI compliance.')} target="_blank" rel="noopener" className={styles.primaryButton}>
+        {/* Partner legale — blocco autorevolezza (inline: servizi ha un module diverso) */}
+        <div style={{
+          position: 'relative', maxWidth: 820, margin: '2.5rem auto 0', padding: '1.75rem 1.75rem 1.5rem',
+          borderRadius: 22, border: '1px solid rgba(34,63,44,0.18)',
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,250,240,0.7))',
+          boxShadow: '0 20px 50px rgba(16,18,14,0.1)',
+          display: 'flex', alignItems: 'center', gap: 22, flexWrap: 'wrap',
+        }}>
+          <span style={{
+            position: 'absolute', top: -12, left: 28, display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '5px 12px', borderRadius: 999, background: 'linear-gradient(135deg,#223f2c,#617c45)',
+            color: '#fffaf0', fontSize: 11, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase',
+          }}><ShieldCheck size={12} /> Partner legale verificato</span>
+          <div style={{
+            flexShrink: 0, width: 84, height: 84, display: 'grid', placeItems: 'center', borderRadius: 18,
+            background: 'linear-gradient(155deg,#10120e,#223f2c)', color: '#e7bf57',
+            fontFamily: 'Fraunces, Georgia, serif', fontWeight: 700, fontSize: 27, letterSpacing: '0.06em',
+          }} aria-hidden="true">BCS</div>
+          <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+            <h3 style={{ margin: '0 0 2px', fontFamily: 'Fraunces, Georgia, serif', fontSize: 24, lineHeight: 1.1, color: '#10120e' }}>Studio Legale BCS</h3>
+            <p style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 700, color: '#223f2c' }}>Avv. Vincenzo Sapone — Cassazionista</p>
+            <p style={{ margin: '0 0 12px', fontSize: 14, lineHeight: 1.55, color: 'rgba(16,18,14,0.72)' }}>
+              Specializzato in Diritto Penale, GDPR, AI Act e diritto delle nuove tecnologie. Le consulenze legali sono erogate direttamente dallo Studio: un professionista abilitato al tuo fianco.
+            </p>
+            <a href="https://studiodigitale.eu/" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 800, color: '#c39528', textDecoration: 'none' }}>
+              Scopri lo Studio <ArrowRight size={14} />
+            </a>
+          </div>
+        </div>
+        <div className={styles.ctaActions} style={{ justifyContent: 'center', marginTop: '1.75rem' }}>
+          <a href={waLink('Ciao! Vorrei un preventivo per le consulenze legali e AI compliance con lo Studio Legale BCS.')} target="_blank" rel="noopener" className={styles.primaryButton}>
             <Scale size={18} />
             Richiedi preventivo su WhatsApp
           </a>
         </div>
-        <p className={styles.heroReassure} style={{ justifyContent: 'center', marginTop: '1rem' }}>
-          <ShieldCheck size={15} /> In collaborazione con <a href="https://studiodigitale.eu/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Studio Legale BCS</a> — Avv. Vincenzo Sapone, Cassazionista, specializzato in GDPR e AI Act.
-        </p>
       </section>
 
       <section id="faq" className={styles.faqSection}>

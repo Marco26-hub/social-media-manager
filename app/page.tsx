@@ -400,16 +400,27 @@ export default function LandingPage() {
               </TiltCard>
             ))}
           </div>
+          {/* Partner legale — blocco dedicato, prova di autorevolezza reale */}
+          <div data-reveal className={styles.partnerCard}>
+            <div className={styles.partnerBadge}><ShieldCheck size={13} /> Partner legale verificato</div>
+            <div className={styles.partnerBody}>
+              <div className={styles.partnerLogo} aria-hidden="true">BCS</div>
+              <div className={styles.partnerInfo}>
+                <h3>Studio Legale BCS</h3>
+                <p className={styles.partnerLawyer}>Avv. Vincenzo Sapone — Cassazionista</p>
+                <p className={styles.partnerSpec}>Specializzato in Diritto Penale, GDPR, AI Act e diritto delle nuove tecnologie. Le consulenze legali sono erogate direttamente dallo Studio: hai un professionista abilitato al tuo fianco, non un semplice servizio automatizzato.</p>
+                <a href="https://studiodigitale.eu/" target="_blank" rel="noopener noreferrer" className={styles.partnerLink}>
+                  Scopri lo Studio <ArrowRight size={14} />
+                </a>
+              </div>
+            </div>
+          </div>
           <div data-reveal className={styles.comingCta}>
-            <a href={waLink('Ciao! Vorrei un preventivo per le consulenze legali e AI compliance.')} target="_blank" rel="noopener" className={styles.primaryBtn}>
+            <a href={waLink('Ciao! Vorrei un preventivo per le consulenze legali e AI compliance con lo Studio Legale BCS.')} target="_blank" rel="noopener" className={styles.primaryBtn}>
               <Scale size={18} />
               Richiedi preventivo
             </a>
           </div>
-          <p data-reveal className={styles.priceFootnote}>
-            <ShieldCheck size={14} />
-            <span>In collaborazione con <a href="https://studiodigitale.eu/" target="_blank" rel="noopener noreferrer">Studio Legale BCS</a> — Avv. Vincenzo Sapone, Cassazionista, specializzato in GDPR e AI Act.</span>
-          </p>
         </div>
       </section>
 

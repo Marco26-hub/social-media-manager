@@ -1006,6 +1006,91 @@
 
 .comingCta { display: flex; justify-content: center; margin-top: 30px; }
 
+/* ---------- Partner legale (Studio BCS) — blocco autorevolezza ---------- */
+.partnerCard {
+  position: relative;
+  max-width: 860px;
+  margin: 44px auto 0;
+  padding: 30px 32px 28px;
+  border-radius: 24px;
+  border: 1px solid rgba(34, 63, 44, 0.18);
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgba(214, 168, 57, 0.1), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 250, 240, 0.72));
+  box-shadow: 0 24px 60px rgba(16, 18, 14, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.partnerBadge {
+  position: absolute;
+  top: -13px;
+  left: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--forest), var(--moss));
+  color: var(--cream);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 8px 18px rgba(34, 63, 44, 0.28);
+}
+.partnerBadge svg { color: var(--gold-soft); }
+
+.partnerBody {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+
+.partnerLogo {
+  flex-shrink: 0;
+  width: 92px;
+  height: 92px;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  background: linear-gradient(155deg, var(--ink), var(--forest));
+  color: var(--gold-soft);
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: 0.06em;
+  box-shadow: inset 0 1px 0 rgba(255, 250, 240, 0.16), 0 12px 26px rgba(16, 18, 14, 0.22);
+}
+
+.partnerInfo { min-width: 0; }
+.partnerInfo h3 {
+  margin: 0 0 3px;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(22px, 2.2vw, 27px);
+  line-height: 1.1;
+  color: var(--ink);
+}
+.partnerLawyer { margin: 0 0 10px; font-size: 15px; font-weight: 700; color: var(--forest); }
+.partnerSpec { margin: 0 0 14px; font-size: 14px; line-height: 1.55; color: rgba(16, 18, 14, 0.72); }
+.partnerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--gold-deep);
+  text-decoration: none;
+}
+.partnerLink:hover { color: var(--forest); }
+.partnerLink svg { transition: transform 0.2s ease; }
+.partnerLink:hover svg { transform: translateX(3px); }
+
+@media (max-width: 640px) {
+  .partnerCard { padding: 28px 20px 24px; }
+  .partnerBody { flex-direction: column; text-align: center; gap: 18px; }
+  .partnerLogo { width: 78px; height: 78px; font-size: 26px; }
+  .partnerLink { justify-content: center; }
+}
+
 .serviceNum {
   position: absolute;
   top: 22px;
