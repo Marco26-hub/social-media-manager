@@ -5,7 +5,7 @@ import { isR2Configured } from '@/lib/storage'
 
 export const dynamic = 'force-dynamic'
 
-const LATEST_REQUIRED_MIGRATION = '025_stripe_webhook_events.sql'
+const LATEST_REQUIRED_MIGRATION = '026_preview_token.sql'
 
 function hasEnv(name: string) {
   return Boolean(process.env[name]?.trim())
@@ -107,8 +107,16 @@ export async function GET() {
   // finché la nuova non passa l'healthcheck, quindi l'endpoint da solo non basta).
   const version = (process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || '').slice(0, 7) || 'unknown'
 
+  // Liveness vs readiness: torniamo 503 SOLO su fallimento CRITICO (in produzione
+  // con DATABASE_URL ma DB irraggiungibile o schema mancante) così Render rileva
+  // un deploy davvero rotto. Le env opzionali mancanti (Stripe/Blotato/storage)
+  // restano 'needs_setup' con HTTP 200: l'app funziona, mancano solo feature — NON
+  // vogliamo che l'healthcheck Render bocci il deploy per una key opzionale.
+  const criticalFailure = !demo && checks.databaseUrl && (!checks.dbConnection || !checks.profilesTable)
+  const httpStatus = criticalFailure ? 503 : 200
+
   return NextResponse.json({
-    status: ready ? 'ready' : 'needs_setup',
+    status: criticalFailure ? 'unhealthy' : (ready ? 'ready' : 'needs_setup'),
     mode: demo ? 'demo' : 'production',
     version,
     database: 'neon-postgres',
@@ -138,5 +146,5 @@ export async function GET() {
       ...(!checks.publishEnabled ? ['PUBLISH_ENABLED non è true: Blotato resta in dry-run globale'] : []),
       ...(checks.blotatoApiKey ? ['Verifica pubblicazione APPROVATO → Blotato/webhook'] : []),
     ],
-  })
+  }, { status: httpStatus })
 }
