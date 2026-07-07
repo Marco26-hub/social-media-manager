@@ -2,12 +2,37 @@
 
 > Documento per AI agent multipli (Claude CLI, Cursor/Cline, Codex). Lavoriamo come un team unificato.
 
-**Data ultimo aggiornamento**: 2026-07-06 (Claude CLI: landing premium, prezzi validati, registrazione self-serve + provisioning, security hardening, disaccoppiamento demo/publish, fix mobile + AI error)
+**Data ultimo aggiornamento**: 2026-07-07 (Claude CLI: copy landing italiano pro anti-slop, pacchetti scala cumulativa + tier Slancio €790, fix generazione carosello 3-5 / story, preview reale, back-to-top dashboard; TASK dashboard cliente per OpenCode/Codex)
 **Progetto**: Social Automation — SaaS social media management per agenzie
 **Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Gemini/OpenRouter/Anthropic/OpenCode/Ollama)
 **Percorso locale**: `/Users/md/Documents/social_automation_v2`
 **Repo**: `https://github.com/Marco26-hub/social-media-manager.git`
 **Deploy live**: `https://social-media-manager-zte4.onrender.com` (Render free, service id `srv-d8up0lvavr4c73fjd1k0`)
+
+---
+
+## 🆕 Sessione 2026-07-07 (Claude CLI) — copy pro, pacchetti cumulativi, fix generazione/preview
+
+### Landing (commit `05ce34a` + modifiche working tree non ancora committate)
+- **Copy in italiano professionale (anti-slop)**: hero full-stack "Social, siti ed e-commerce gestiti dall'AI. Il controllo resta tuo"; sezione storia "Perché esistiamo"; blog dedicato (sotto i canali); glossario termini (SEO/GEO/UTM/omnichannel/funnel/cross-post…); canali = **8 social** (Blog separato); incipit dei canali variati.
+- **Pacchetti a scala cumulativa**: ogni tier mostra "Tutto di X, più:" e le `features` elencano solo i differenziali (nuovo campo `includeDa` in `lib/pacchetti.ts`, fonte unica). Nuovo tier **Slancio €790** (tra Presenza e Crescita). Layout pricing **3×2** (landing + /servizi). Canoni validati invariati (390/590/790/1.090/1.690/2.590). ⚠️ **Slancio €790/setup €390 = proposta da validare** con l'utente.
+- Fix nome "E-commerce" a capo (`white-space: nowrap`).
+
+### Fix prodotto / generazione (working tree — DA COMMITTARE)
+- **Carosello 5-7 → 3-5 slide** (`app/api/generate/content/route.ts` prompt `instagram:carousel` + `lib/social-config.ts`). NB: ancora **nessuna validazione hard** del numero slide post-generazione (affidato al prompt).
+- **Errore story "No JSON object found"**: `extractJSON` (`lib/ai.ts`) reso robusto — toglie code-fence ```json, isola l'oggetto bilanciando le graffe, e **chiude i JSON troncati**. ⚠️ Se un modello free tronca pesantemente, MANCA ancora un **retry con più token** per la story.
+- **Preview `/preview/[id]`**: mostrava **9 piattaforme hardcoded** (ALL_PLATFORMS) → ora mostra il **contenuto REALE** (canale+formato dal DB), 1 card. `PostPreview` carosello → **galleria swipe** di tutte le foto (`link_media_1..7`); la preview ora carica tutti gli slot media. Risolve l'incongruenza calendario↔preview e la falsa impressione "genera tutto".
+- **Back-to-top** aggiunto a tutte le dashboard (`app/dashboard/layout.tsx` → `<BackToTop />`).
+
+### 🎯 TASK per OpenCode/Codex — DASHBOARD CLIENTE (client-facing) — poi Claude CLI verifica
+Costruire una **vista cliente** dove il cliente finale vede in un unico posto:
+1. **Pacchetto attivo**: nome + canone + features incluse. Join `clienti.piano` con `lib/pacchetti.ts`. ⚠️ `clienti.piano` usa `free/pro/agency/enterprise` — va **mappato agli slug reali** (`starter/presenza/slancio/crescita/ecommerce/dominio`) oppure aggiungere colonna `pacchetto_slug` su `clienti` (migration).
+2. **Quota contenuti del mese**: inclusi (`clienti.contenuti_mese`) vs usati. Query: `COUNT(*)` su `calendario WHERE cliente_id=$1 AND data_pubblicazione nel mese corrente AND status NOT IN ('BOZZA','ERRORE')`. UI barra "8/20 usati". ⚠️ manca `contenuti_usati_mese` e il reset a inizio mese → calcolarlo a runtime.
+3. **Report live**: riusare `/api/data/report` + `/dashboard/analytics` (reach/engagement, inseriti a mano oggi).
+4. **Pagamenti (FASE 2, NON ora)**: effettuati + prossima scadenza. **Non esiste NULLA** (nessuna tabella/gateway). Richiede nuova tabella `pagamenti` + eventuale Stripe. Per la v1 lasciare placeholder/ometterla.
+
+**Riusabile**: `user_client_access` (ruoli owner/admin/editor/viewer) + `requireClienteAccess()` (`lib/auth-utils.ts`) + `ACTIVE_CLIENTE_COOKIE`; `app/dashboard/layout.tsx`; `lib/pacchetti.ts`. **Da creare**: pagina vista cliente (es. `app/dashboard/il-mio-piano/`), endpoint quota, mapping piano→pacchetto, (fase 2) tabella pagamenti.
+**Vincoli**: no metriche finte; multi-tenant sicuro; demo mode funzionante (`isDemo()` → dati finti); `npm run build` verde.
 
 ---
 
