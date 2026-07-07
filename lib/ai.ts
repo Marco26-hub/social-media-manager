@@ -719,7 +719,10 @@ async function callOllama(
   }
 }
 
-export function extractJSON(text: string): unknown {
+// Estrae il JSON e segnala se la risposta era TRONCATA (graffe non chiuse, ricostruite
+// a forza). Il chiamante può usare `truncated` per ritentare con più token / modello
+// con output maggiore invece di salvare un oggetto potenzialmente incompleto.
+export function extractJSONChecked(text: string): { data: unknown; truncated: boolean } {
   // 1) Togli eventuali code-fence ```json ... ``` che alcuni modelli aggiungono.
   let t = text.trim()
   const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i)
@@ -744,13 +747,20 @@ export function extractJSON(text: string): unknown {
   // 3) Se non ha chiuso (risposta troncata) prova comunque a chiudere le graffe aperte.
   const candidate = end !== -1 ? t.slice(start, end + 1) : t.slice(start)
   try {
-    return JSON.parse(candidate)
+    return { data: JSON.parse(candidate), truncated: false }
   } catch {
     if (end === -1 && depth > 0) {
-      try { return JSON.parse(candidate + '}'.repeat(depth)) } catch { /* cade sotto */ }
+      try {
+        // Ricostruzione forzata: l'oggetto NON era chiuso → truncated=true.
+        return { data: JSON.parse(candidate + '}'.repeat(depth)), truncated: true }
+      } catch { /* cade sotto */ }
     }
     throw new Error(`Malformed JSON in AI response: ${candidate.slice(0, 300)}`)
   }
+}
+
+export function extractJSON(text: string): unknown {
+  return extractJSONChecked(text).data
 }
 
 export function extractJSONArray(text: string): unknown[] {

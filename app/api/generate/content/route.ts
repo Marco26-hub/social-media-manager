@@ -474,7 +474,7 @@ function buildSystemPrompt(brand: Record<string, unknown> | null, quality: strin
 export async function POST(request: Request) {
   try {
     await requireAuth()
-    const { cliente_id, canale, formato, model, openrouter_key, gemini_key, opencode_key, tema, nome_prodotto, product_id, quality, quality_level, post_quality, qualita, obiettivo, uploaded_assets, media_urls, also_canali, visual_effects } = await request.json()
+    const { cliente_id, canale, formato, model, openrouter_key, gemini_key, opencode_key, tema, nome_prodotto, product_id, quality, quality_level, post_quality, qualita, obiettivo, uploaded_assets, media_urls, also_canali, visual_effects, visual_preset, use_trending_effects, consenso_utilizzo } = await request.json()
     if (!canale || !formato) {
       return NextResponse.json({ error: 'canale, formato richiesti' }, { status: 400 })
     }
@@ -559,7 +559,39 @@ export async function POST(request: Request) {
       images: visionUrls,
     })
 
-    const parsed = extractJSON(aiRes) as Record<string, unknown>
+    let parsed = extractJSON(aiRes) as Record<string, unknown>
+
+    // VALIDAZIONE HARD carosello: Instagram/Facebook carousel deve avere 3-5 slide.
+    // Se il modello ne genera meno di 3 o più di 5, ritentiamo UNA volta con una
+    // richiesta esplicita del numero. Prima il vincolo era solo nel prompt (soft) →
+    // capitava di pubblicare caroselli con 1 o 8 slide.
+    if (formato === 'carousel') {
+      const countSlides = (p: Record<string, unknown>): number => {
+        const s = p.slides || p.immagini || p.slides_json || p.scene || p.scenes
+        return Array.isArray(s) ? s.length : 0
+      }
+      let n = countSlides(parsed)
+      if (n < 3 || n > 5) {
+        warnings.push(`Carosello con ${n} slide fuori range 3-5: rigenerato.`)
+        try {
+          const retryRes = await callAI({
+            model: model || 'meta-llama/llama-3.3-70b-instruct:free',
+            systemPrompt: buildSystemPrompt(brand, contentQuality),
+            userPrompt: `${userPrompt}\n\nVINCOLO ASSOLUTO: il carosello deve avere ESATTAMENTE da 3 a 5 slide nel campo "slides" (mai meno di 3, mai più di 5). La generazione precedente ne aveva ${n}. Rigenera rispettando il vincolo.`,
+            openrouterKey: openrouter_key, geminiKey: gemini_key, opencodeKey: opencode_key,
+            maxTokens: getQualityTokenBudget(contentQuality),
+            images: visionUrls,
+          })
+          const retryParsed = extractJSON(retryRes) as Record<string, unknown>
+          const rn = countSlides(retryParsed)
+          if (rn >= 3 && rn <= 5) { parsed = retryParsed; n = rn }
+          else warnings.push(`Anche il retry ha prodotto ${rn} slide: salvato comunque, verifica manuale consigliata.`)
+        } catch (e) {
+          warnings.push(`Retry carosello fallito: ${(e as Error).message.slice(0, 100)}. Salvato il primo tentativo.`)
+        }
+      }
+    }
+
     const id_contenuto = `C${Date.now().toString(36).toUpperCase()}`
 
     const caption = extractCaption(parsed)
@@ -611,8 +643,8 @@ export async function POST(request: Request) {
       formato === 'reel' || formato === 'video' || formato === 'short' ? 'video' : 'image',
       (product as Record<string, unknown>)?.link_prodotto as string || null,
       (product as Record<string, unknown>)?.link_prodotto as string || null,
-      'trending',
-      true,
+      typeof visual_preset === 'string' ? visual_preset : null,
+      Boolean(use_trending_effects),
       jsonbParam(Array.isArray(visual_effects) ? visual_effects : null),
       mediaUrls[0] || null,
       mediaUrls[1] || null,
@@ -625,7 +657,15 @@ export async function POST(request: Request) {
       mediaUrls[8] || null,
       mediaUrls[9] || null,
       mediaUrls.length ? (userAssets.some(asset => asset.source === 'upload') ? 'upload_cliente' : 'url_cliente') : null,
-      mediaUrls.length ? 'SI' : null,
+      // Consenso all'utilizzo: gli asset caricati dal cliente (upload) implicano
+      // consenso; i media da URL ESTERNO richiedono consenso ESPLICITO (body
+      // consenso_utilizzo) altrimenti restano 'DA_VERIFICARE' (gate publish a valle).
+      (() => {
+        if (!mediaUrls.length) return null
+        const allUploaded = userAssets.every(a => a.source === 'upload')
+        if (allUploaded) return 'SI'
+        return consenso_utilizzo === true || consenso_utilizzo === 'SI' ? 'SI' : 'DA_VERIFICARE'
+      })(),
       scenes, slides, overlay || null,
       altText || null,
       tags ? JSON.stringify(tags) : null,
