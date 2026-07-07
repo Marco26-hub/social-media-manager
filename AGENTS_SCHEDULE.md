@@ -1,5 +1,15 @@
 # 🤖 Complete Agent Automation Schedule
 
+> ⚠️ **STATO 2026-07-07 — DOCUMENTO PROGETTUALE, NON IMPLEMENTATO IN PRODUZIONE.**
+> Questo schedule descrive l'architettura target multi-agente. In produzione oggi
+> è implementato SOLO `prospect-scraper` (`app/api/agents/prospect-scraper/route.ts`,
+> ancora con dati simulati) e nessun `type: cron` è configurato su Render.
+> Gli agenti weekly qui elencati sono **roadmap** finché non saranno riscritti sullo
+> stack reale (Neon + `lib/db.ts q()`, no Supabase), callable via Bearer `CRON_SECRET`,
+> e schedulati in `render.yaml`. Le feature venduta nei pacchetti (`lib/pacchetti.ts`)
+> NON menzionano automazioni settimanali autonome: report/audit sono human-in-the-loop.
+> Non promettere cron agli utenti finché non esistono davvero.
+
 ## Sistema Automatico Completo Social Automation V2
 
 Social Automation V2 è un **sistema multi-agente completamente automatizzato** che gestisce:
