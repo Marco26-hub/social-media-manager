@@ -35,6 +35,8 @@ import {
   ImagePlus,
   FileCheck2,
   BookOpen,
+  Scale,
+  LockKeyhole,
 } from 'lucide-react'
 import styles from './home.module.css'
 
@@ -58,6 +60,16 @@ const SERVIZI = [
 const IN_ARRIVO = [
   { icon: PhoneCall, titolo: 'Voce AI & Reception', desc: 'Un assistente AI che risponde al telefono 24 ore su 24, capisce chi chiama e fissa appuntamenti: non perdi più una chiamata.', nota: 'Già attivabile su richiesta con i nostri partner.' },
   { icon: Bot, titolo: 'Automazione & Agenti AI', desc: 'Agenti AI che gestiranno i processi ripetitivi della tua azienda — non solo i contenuti, ma i flussi operativi quotidiani.' },
+]
+
+// Consulenze legali e AI compliance — servizio ATTIVO (modulo extra su
+// preventivo, non canone fisso). Offerto con partner legale. Va nel OfferCatalog
+// come servizio reale, ma resta fuori da PACCHETTI (modulo aggiuntivo).
+const CONSULENZE_LEGALI = [
+  { icon: Scale, titolo: 'Audit AI Act', desc: 'Verifichiamo se e come i sistemi AI che usi rientrano nelle categorie di rischio del Regolamento UE 2024/1689, e ti diciamo cosa devi fare per essere a norma entro le scadenze.' },
+  { icon: ShieldCheck, titolo: 'Privacy & GDPR con l’AI', desc: 'Ti aiutiamo a usare l’AI rispettando la privacy: dai dati che alimentano i modelli al diritto di spiegazione, con informativa e consensi in regola.' },
+  { icon: FileCheck2, titolo: 'Trasparenza contenuti AI', desc: 'Quando un contenuto è generato dall’AI, va dichiarato. Ti diciamo quando è obbligatorio e mettiamo le etichette giuste su post, immagini e articoli, come chiede la legge.' },
+  { icon: LockKeyhole, titolo: 'Copyright e contratti AI', desc: 'Chiariamo a chi appartengono i contenuti e le immagini creati dall’AI e scriviamo i contratti giusti con clienti, fornitori e piattaforme, così sai cosa puoi usare e pubblicare.' },
 ]
 
 // Cosa include la gestione social — tutte le capacità reali della piattaforma,
@@ -365,10 +377,44 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Consulenze legali e AI compliance — modulo extra su preventivo */}
+      <section id="consulenze-legali" className={styles.sectionAlt} aria-labelledby="consulenze-legali-title">
+        <div className={styles.wrap}>
+          <div data-reveal className={styles.sectionIntroCenter}>
+            <p className={styles.eyebrow}><Scale size={13} /> Consulenze Legali e AI Compliance</p>
+            <h2 id="consulenze-legali-title" className={styles.h2}>La tua attività, a norma anche con l&apos;AI.</h2>
+            <p className={styles.lead}>
+              L&apos;AI lavora per te, ma la responsabilità resta tua. Ti affianchiamo per restare in regola
+              con GDPR e AI Act, senza fermare il business.
+            </p>
+          </div>
+          <div data-reveal className={styles.serviceGrid}>
+            {CONSULENZE_LEGALI.map(({ icon: Icon, titolo, desc }) => (
+              <TiltCard key={titolo} className={`${styles.card} ${styles.hoverLift} ${styles.serviceCard}`}>
+                <article>
+                  <span className={`${styles.cardIcon} ${styles.cardIconForest}`}><Icon size={22} /></span>
+                  <h3>{titolo}</h3>
+                  <p>{desc}</p>
+                </article>
+              </TiltCard>
+            ))}
+          </div>
+          <div data-reveal className={styles.comingCta}>
+            <a href={waLink('Ciao! Vorrei un preventivo per le consulenze legali e AI compliance.')} target="_blank" rel="noopener" className={styles.primaryBtn}>
+              <Scale size={18} />
+              Richiedi preventivo
+            </a>
+          </div>
+          <p data-reveal className={styles.priceFootnote}>
+            <ShieldCheck size={14} />
+            <span>In collaborazione con <a href="https://studiodigitale.eu/" target="_blank" rel="noopener noreferrer">Studio Legale BCS</a> — Avv. Vincenzo Sapone, Cassazionista, specializzato in GDPR e AI Act.</span>
+          </p>
+        </div>
+      </section>
+
       {/* Storia — perché esistiamo (narrativa origine) */}
       <section className={styles.section}>
-        <div className={`${styles.wrapNarrow} ${styles.story}`}>
-          <div data-reveal className={styles.sectionIntroCenter}>
+        <div className={`${styles.wrapNarrow} ${styles.story}`}>          <div data-reveal className={styles.sectionIntroCenter}>
             <p className={styles.eyebrow}>{STORY.eyebrow}</p>
             <h2 className={styles.h2}>{STORY.h2}</h2>
           </div>

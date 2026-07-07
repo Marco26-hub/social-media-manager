@@ -9,9 +9,9 @@ const jsonLd = {
       name: 'Social Automation',
       url: SITE_URL,
       logo: `${SITE_URL}/og.png`,
-      sameAs: [],
       description:
-        'Social Automation è il partner per la crescita digitale di agenzie e PMI italiane: gestione social con AI, siti ed e-commerce e visibilità su Google e sugli assistenti AI (SEO e GEO). In arrivo: receptionist AI 24/7 e agenti di automazione aziendale.',
+        'Social Automation è il partner per la crescita digitale di agenzie e PMI italiane: gestione social con AI, siti ed e-commerce e visibilità su Google e sugli assistenti AI (SEO e GEO). Consulenze legali e AI compliance (GDPR e AI Act) in collaborazione con Studio Legale BCS. In arrivo: receptionist AI 24/7 e agenti di automazione aziendale.',
+      sameAs: ['https://studiodigitale.eu/'],
       makesOffer: {
         '@type': 'OfferCatalog',
         name: 'Servizi Social Automation',
@@ -38,6 +38,24 @@ const jsonLd = {
               '@type': 'Service',
               name: 'Visibilità & Crescita',
               description: 'Posizionamento su Google e sugli assistenti AI (SEO e GEO), per trasformare l’attenzione in contatti reali.',
+            },
+          },
+          {
+            '@type': 'Offer',
+            itemOffered: {
+              '@type': 'Service',
+              name: 'Consulenze Legali e AI Compliance',
+              description: 'Consulenze legali su GDPR e AI Act (Regolamento UE 2024/1689): audit di conformità, privacy con l’AI, trasparenza dei contenuti generati dall’AI e contratti. Modulo extra su preventivo, in collaborazione con Studio Legale BCS.',
+              provider: {
+                '@type': 'LegalService',
+                name: 'Studio Legale BCS',
+                url: 'https://studiodigitale.eu/',
+                founder: {
+                  '@type': 'Person',
+                  name: 'Avv. Vincenzo Sapone',
+                  jobTitle: 'Avvocato Cassazionista',
+                },
+              },
             },
           },
         ],
@@ -88,7 +106,7 @@ const jsonLd = {
           name: 'Quali servizi offre Social Automation?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'Tre servizi attivi: Social automatizzato (contenuti e pubblicazione con approvazione umana), Siti & E-commerce (siti e negozi online che convertono, con pannello di gestione) e Visibilità & Crescita (posizionamento su Google e sugli assistenti AI, SEO e GEO). In arrivo con accesso anticipato: Voce AI & Reception (receptionist AI 24/7) e Automazione & Agenti AI.',
+            text: 'Quattro servizi attivi: Social automatizzato (contenuti e pubblicazione con approvazione umana), Siti & E-commerce (siti e negozi online che convertono, con pannello di gestione), Visibilità & Crescita (posizionamento su Google e sugli assistenti AI, SEO e GEO) e Consulenze Legali e AI Compliance (GDPR e AI Act, in collaborazione con Studio Legale BCS). In arrivo con accesso anticipato: Voce AI & Reception (receptionist AI 24/7) e Automazione & Agenti AI.',
           },
         },
         {

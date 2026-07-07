@@ -12,12 +12,14 @@ import {
   LockKeyhole,
   MessageCircle,
   PlayCircle,
+  Scale,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
   Target,
   Wand2,
   Zap,
+  FileCheck2,
 } from 'lucide-react'
 import { PACCHETTI } from '@/lib/pacchetti'
 import styles from './servizi.module.css'
@@ -55,6 +57,14 @@ const extras = [
   'Landing page dedicate per campagne o promozioni',
   'Blog SEO/GEO e articoli lunghi per autorevolezza',
   'Shooting, reel extra e contenuti premium su richiesta',
+  'Consulenze legali e AI compliance su richiesta (AI Act, GDPR, trasparenza contenuti AI)',
+]
+
+const legalCards = [
+  { icon: Scale, title: 'Audit AI Act', text: 'Verifichiamo se e come i sistemi AI che usi rientrano nelle categorie di rischio del Regolamento UE 2024/1689, e ti diciamo cosa devi fare per essere a norma entro le scadenze.' },
+  { icon: ShieldCheck, title: 'Privacy & GDPR con l’AI', text: 'Ti aiutiamo a usare l’AI rispettando la privacy: dai dati che alimentano i modelli al diritto di spiegazione, con informativa e consensi in regola.' },
+  { icon: FileCheck2, title: 'Trasparenza contenuti AI', text: 'Quando un contenuto è generato dall’AI, va dichiarato. Ti diciamo quando è obbligatorio e mettiamo le etichette giuste su post, immagini e articoli, come chiede la legge.' },
+  { icon: LockKeyhole, title: 'Copyright e contratti AI', text: 'Chiariamo a chi appartengono i contenuti e le immagini creati dall’AI e scriviamo i contratti giusti con clienti, fornitori e piattaforme, così sai cosa puoi usare e pubblicare.' },
 ]
 
 const compareRows = [
@@ -305,6 +315,32 @@ export default function ServiziPage() {
         <div className={styles.extrasList}>
           {extras.map(extra => <div key={extra}><PlayCircle size={18} /> {extra}</div>)}
         </div>
+      </section>
+
+      <section className={styles.outcomesSection} aria-labelledby="consulenze-legali-title">
+        <div className={styles.sectionIntro}>
+          <p className={styles.sectionLabel}>Consulenze Legali e AI Compliance</p>
+          <h2 id="consulenze-legali-title">La tua attività, a norma anche con l’AI.</h2>
+          <p>L’AI lavora per te, ma la responsabilita resta tua. Ti affianchiamo per restare in regola con GDPR e AI Act, senza fermare il business. Modulo extra su preventivo.</p>
+        </div>
+        <div className={styles.outcomeGrid}>
+          {legalCards.map(({ icon: Icon, title, text }) => (
+            <article key={title} className={styles.outcomeCard}>
+              <span><Icon size={24} /></span>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </article>
+          ))}
+        </div>
+        <div className={styles.ctaActions} style={{ justifyContent: 'center', marginTop: '2rem' }}>
+          <a href={waLink('Ciao! Vorrei un preventivo per le consulenze legali e AI compliance.')} target="_blank" rel="noopener" className={styles.primaryButton}>
+            <Scale size={18} />
+            Richiedi preventivo su WhatsApp
+          </a>
+        </div>
+        <p className={styles.heroReassure} style={{ justifyContent: 'center', marginTop: '1rem' }}>
+          <ShieldCheck size={15} /> In collaborazione con <a href="https://studiodigitale.eu/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>Studio Legale BCS</a> — Avv. Vincenzo Sapone, Cassazionista, specializzato in GDPR e AI Act.
+        </p>
       </section>
 
       <section id="faq" className={styles.faqSection}>
