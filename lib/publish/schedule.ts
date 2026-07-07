@@ -5,6 +5,7 @@ import { q } from '@/lib/db'
 import { isDemo } from '@/lib/demo'
 import { validateMediaUrls } from '@/lib/media-validate'
 import { getBlotatoKey } from '@/lib/blotato-key'
+import { resolveBlotatoTarget } from '@/lib/blotato-accounts'
 
 const BLOTATO_API_BASE = process.env.BLOTATO_API_URL || 'https://backend.blotato.com'
 
@@ -78,10 +79,24 @@ export async function scheduleOnBlotato(
   }
 
   // accountId è OBBLIGATORIO per Blotato: identifica SU QUALE account social pubblicare.
-  // Va salvato in calendario.platform_account_id (da blotato_list_accounts → mappa canale→accountId).
-  const accountId = (row.platform_account_id as string | null)?.trim()
+  // Lo risolviamo dagli account collegati in Blotato (resolveBlotatoTarget), che
+  // fornisce anche i campi target per-piattaforma (Facebook pageId, Pinterest boardId…).
+  // Un platform_account_id già salvato sulla riga fa da override manuale (pin).
+  const manualAccountId = (row.platform_account_id as string | null)?.trim() || ''
+  let accountId = manualAccountId
+  let target: Record<string, unknown> = { targetType: platform }
+  try {
+    const resolved = await resolveBlotatoTarget(blotatoKey, canale, row)
+    target = resolved.target
+    if (!accountId) accountId = resolved.accountId
+  } catch (e) {
+    // Nessun account risolvibile: se non c'è nemmeno un id manuale, esponi l'errore
+    // azionabile (quale account collegare) invece di un fallback muto.
+    if (!accountId) throw e
+    console.warn(`[Blotato] resolver account fallito per '${canale}', uso platform_account_id manuale:`, (e as Error).message.slice(0, 160))
+  }
   if (!accountId) {
-    throw new Error(`Account Blotato non collegato per il canale '${canale}': imposta platform_account_id (vedi blotato_list_accounts)`)
+    throw new Error(`Account Blotato non collegato per il canale '${canale}': collega l'account nel workspace Blotato`)
   }
 
   // Costruisci il contenuto testuale completo per la piattaforma (hook+caption+cta+hashtag).
@@ -109,7 +124,7 @@ export async function scheduleOnBlotato(
   const payload: Record<string, unknown> = {
     post: {
       accountId,
-      target: { targetType: platform },
+      target,
       content: {
         platform,
         text,
@@ -144,14 +159,24 @@ export async function scheduleOnBlotato(
     return { status: 'skipped', reason: 'Blotato non ha restituito un id post' }
   }
 
-  // Aggiorna status locale
+  // Aggiorna status locale. Persiste anche l'accountId risolto se la riga non
+  // l'aveva (così i sync successivi e la UI lo mostrano senza ririsolvere).
   if (row.id) {
-    await q(
-      `UPDATE calendario
-       SET blotato_post_id = $1, blotato_status = 'scheduled', blotato_scheduled_at = $2, blotato_sync_at = now()
-       WHERE id = $3 AND cliente_id = $4`,
-      [String(blotatoId), scheduledTime, row.id, clienteId],
-    )
+    if (!manualAccountId && accountId) {
+      await q(
+        `UPDATE calendario
+         SET blotato_post_id = $1, blotato_status = 'scheduled', blotato_scheduled_at = $2, blotato_sync_at = now(), platform_account_id = $5
+         WHERE id = $3 AND cliente_id = $4`,
+        [String(blotatoId), scheduledTime, row.id, clienteId, accountId],
+      )
+    } else {
+      await q(
+        `UPDATE calendario
+         SET blotato_post_id = $1, blotato_status = 'scheduled', blotato_scheduled_at = $2, blotato_sync_at = now()
+         WHERE id = $3 AND cliente_id = $4`,
+        [String(blotatoId), scheduledTime, row.id, clienteId],
+      )
+    }
   }
 
   return { status: 'scheduled', blotatoId: String(blotatoId) }

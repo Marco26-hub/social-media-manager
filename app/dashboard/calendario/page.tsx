@@ -276,12 +276,15 @@ function CalendarioInner() {
       const res = await fetch('/api/data/blotato-sync', { method: 'POST' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.hint || data.error || 'Sincronizzazione fallita')
-      const failNote = data.failed ? ` (${data.failed} falliti)` : ''
+      const firstErr = Array.isArray(data.errors) && data.errors[0] ? ` — ${data.errors[0].canale}: ${data.errors[0].error}` : ''
+      const failNote = data.failed ? ` (${data.failed} falliti)${firstErr}` : ''
+      // dry-run = pubblicazione non attiva: contenuti pronti ma non pubblicati davvero.
+      const dryNote = data.dry_run ? ` ${data.dry_run} in dry-run (PUBLISH_ENABLED non attivo).` : ''
       setSyncMsg({
         type: data.failed ? 'err' : 'ok',
         text: data.candidates === 0
           ? 'Nessun contenuto approvato da sincronizzare.'
-          : `${data.synced} contenuti inviati a Blotato${failNote}.`,
+          : `${data.synced} contenuti inviati a Blotato${failNote}.${dryNote}`,
       })
       await fetchData()
     } catch (e) {

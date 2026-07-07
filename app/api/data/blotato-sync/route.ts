@@ -1,10 +1,53 @@
 import { NextResponse } from 'next/server'
 import { requireClienteId } from '@/lib/auth-utils'
 import { q } from '@/lib/db'
-import { scheduleOnBlotato } from '@/lib/publish/schedule'
+import { scheduleOnBlotato, isPublishingLive } from '@/lib/publish/schedule'
 import { getBlotatoKey } from '@/lib/blotato-key'
+import { listBlotatoAccounts } from '@/lib/blotato-accounts'
 
 export const dynamic = 'force-dynamic'
+
+// GET — Verifica connessione Blotato SENZA pubblicare: key presente? account
+// collegati? pubblicazione live? Serve per confermare il setup prima del go-live.
+export async function GET() {
+  let clienteId: string
+  try {
+    clienteId = await requireClienteId()
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message || 'Non autorizzato' }, { status: 401 })
+  }
+
+  const blotatoKey = await getBlotatoKey(clienteId)
+  if (!blotatoKey) {
+    return NextResponse.json({
+      configured: false,
+      publishing_live: isPublishingLive(),
+      connected_platforms: [],
+      hint: 'API key Blotato non configurata: inseriscila in Impostazioni cliente o nella env BLOTATO_API_KEY.',
+    })
+  }
+
+  try {
+    const accounts = await listBlotatoAccounts(blotatoKey, true)
+    return NextResponse.json({
+      configured: true,
+      publishing_live: isPublishingLive(),
+      connected_platforms: accounts.map(a => a.platform),
+      accounts: accounts.map(a => ({ platform: a.platform, username: a.username || a.name || null, subaccounts: a.subaccounts.length })),
+      ...(accounts.length === 0 ? { hint: 'Key valida ma nessun account social collegato nel workspace Blotato: collega gli account da pubblicare.' } : {}),
+      ...(!isPublishingLive() ? { note: 'PUBLISH_ENABLED non è "true": i sync restano dry-run (nessun post reale) finché non lo abiliti.' } : {}),
+    })
+  } catch (e) {
+    // NIENTE fallback muto: se /v2/accounts fallisce l'utente deve saperlo (key errata,
+    // endpoint irraggiungibile) invece di scoprirlo solo al primo publish fallito.
+    return NextResponse.json({
+      configured: true,
+      publishing_live: isPublishingLive(),
+      connected_platforms: [],
+      error: `Verifica account Blotato fallita: ${(e as Error).message.slice(0, 180)}`,
+    }, { status: 502 })
+  }
+}
 
 // POST — Sincronizza con Blotato tutti i contenuti APPROVATI non ancora inviati.
 // È il "tasto Sincronizza" della dashboard: calendario → Blotato → pubblicazione.
