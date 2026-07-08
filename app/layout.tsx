@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import JsonLd from '@/components/JsonLd'
+import CookieBanner from '@/components/CookieBanner'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://social-media-manager-zte4.onrender.com'),
@@ -64,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <JsonLd />
         {children}
+        <CookieBanner />
       </body>
     </html>
   )

@@ -679,6 +679,12 @@ export default function LandingPage() {
             <Link href="/login">Accedi</Link>
           </div>
         </div>
+        <div className={styles.footerLegal}>
+          <Link href="/privacy">Privacy Policy</Link>
+          <Link href="/cookie-policy">Cookie Policy</Link>
+          <Link href="/termini">Termini e Condizioni</Link>
+          <Link href="/trasparenza-ai">Trasparenza AI</Link>
+        </div>
         <div className={styles.footerBottom}>
           <span>&copy; {new Date().getFullYear()} Social Automation</span>
           <span><ShieldCheck size={14} /> Costruito con Next.js, Neon/Postgres, Claude e Blotato</span>

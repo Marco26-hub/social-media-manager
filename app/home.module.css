@@ -870,6 +870,14 @@
 .footerLinks { display: flex; flex-wrap: wrap; gap: 20px; font-size: 14px; }
 .footerLinks a { color: rgba(16, 18, 14, 0.66); text-decoration: none; transition: color 0.2s ease; }
 .footerLinks a:hover { color: var(--ink); }
+.footerLegal {
+  display: flex; flex-wrap: wrap; gap: 8px 18px;
+  margin-top: 20px; padding-top: 18px;
+  border-top: 1px solid rgba(16, 18, 14, 0.08);
+  font-size: 13px;
+}
+.footerLegal a { color: rgba(16, 18, 14, 0.6); text-decoration: none; font-weight: 600; }
+.footerLegal a:hover { color: var(--gold-deep); text-decoration: underline; }
 .footerBottom {
   display: flex;
   flex-wrap: wrap;
