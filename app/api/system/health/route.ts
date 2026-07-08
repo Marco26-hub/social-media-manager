@@ -94,6 +94,8 @@ export async function GET() {
     blotatoWebhookSecret: hasEnv('BLOTATO_WEBHOOK_SECRET'),
     stripeSecret: hasEnv('STRIPE_SECRET_KEY'),
     stripeWebhook: hasEnv('STRIPE_WEBHOOK_SECRET'),
+    metaGraph: hasEnv('META_APP_ID') && hasEnv('META_APP_SECRET'),
+    emailResend: hasEnv('RESEND_API_KEY') && hasEnv('EMAIL_FROM'),
     publishEnabled: process.env.PUBLISH_ENABLED === 'true',
     r2Storage: isR2Configured(),
   }
@@ -143,6 +145,8 @@ export async function GET() {
       ...(!checks.blotatoWebhookSecret ? ['Configura BLOTATO_WEBHOOK_SECRET per firmare i callback Blotato'] : []),
       ...(!checks.stripeSecret ? ['Configura STRIPE_SECRET_KEY per checkout/portal pagamenti'] : []),
       ...(!checks.stripeWebhook ? ['Configura STRIPE_WEBHOOK_SECRET per ricevere eventi Stripe'] : []),
+      ...(!checks.metaGraph ? ['(Opz.) META_APP_ID + META_APP_SECRET per Insights Instagram/Facebook automatiche'] : []),
+      ...(!checks.emailResend ? ['(Opz.) RESEND_API_KEY + EMAIL_FROM per email onboarding (registrazione/attivazione)'] : []),
       ...(!checks.publishEnabled ? ['PUBLISH_ENABLED non è true: Blotato resta in dry-run globale'] : []),
       ...(checks.blotatoApiKey ? ['Verifica pubblicazione APPROVATO → Blotato/webhook'] : []),
     ],
