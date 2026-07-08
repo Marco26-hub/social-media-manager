@@ -101,8 +101,15 @@ function buildPayload(cliente: ClienteRow, usati: number, pagamenti?: PaymentSna
 }
 
 function isMissingPaymentsSchema(error: unknown): boolean {
+  // pg code preciso: 42P01 undefined_table, 42703 undefined_column.
+  const code = (error as { code?: string })?.code || ''
+  if (code === '42P01' || code === '42703') return true
+  // Fallback sul messaggio: richiede identificatore-pagamenti E "does not exist"
+  // INSIEME (prima bastava "pagamenti" o "does not exist" da soli → falsi positivi
+  // su errori non correlati).
   const message = error instanceof Error ? error.message : String(error || '')
-  return /pagamenti|stripe_subscriptions|stripe_customer_id|stripe_subscription_id|does not exist|42703|42P01/i.test(message)
+  return /(pagamenti|stripe_subscriptions|stripe_customer_id|stripe_subscription_id)/i.test(message)
+    && /does not exist/i.test(message)
 }
 
 async function loadPaymentSnapshot(clienteId: string): Promise<PaymentSnapshot> {

@@ -42,8 +42,13 @@ function demoPayload() {
 }
 
 function isMissingPaymentsSchema(error: unknown): boolean {
+  // pg code preciso: 42P01 undefined_table, 42703 undefined_column.
+  const code = (error as { code?: string })?.code || ''
+  if (code === '42P01' || code === '42703') return true
+  // Fallback messaggio: identificatore-pagamenti E "does not exist" INSIEME.
   const message = error instanceof Error ? error.message : String(error || '')
-  return /pagamenti|stripe_subscriptions|stripe_customer_id|stripe_subscription_id|does not exist|42703|42P01/i.test(message)
+  return /(pagamenti|stripe_subscriptions|stripe_customer_id|stripe_subscription_id)/i.test(message)
+    && /does not exist/i.test(message)
 }
 
 export async function GET() {

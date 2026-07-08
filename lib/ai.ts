@@ -764,11 +764,36 @@ export function extractJSON(text: string): unknown {
 }
 
 export function extractJSONArray(text: string): unknown[] {
-  const m = text.match(/\[[\s\S]*\]/)
-  if (!m) throw new Error('No JSON array found in AI response')
+  // Togli code-fence se presente.
+  let t = text.trim()
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (fence) t = fence[1].trim()
+
+  const start = t.indexOf('[')
+  if (start === -1) throw new Error('No JSON array found in AI response')
+
+  // Bilancia le parentesi quadre ignorando quelle dentro le stringhe (prima una
+  // regex greedy `\[[\s\S]*\]` prendeva fino all'ULTIMA ] del testo, includendo
+  // spazzatura dopo l'array o unendo array multipli).
+  let depth = 0, end = -1, inStr = false, esc = false
+  for (let i = start; i < t.length; i++) {
+    const c = t[i]
+    if (esc) { esc = false; continue }
+    if (c === '\\') { esc = true; continue }
+    if (c === '"') { inStr = !inStr; continue }
+    if (inStr) continue
+    if (c === '[') depth++
+    else if (c === ']' && --depth === 0) { end = i; break }
+  }
+
+  const candidate = end !== -1 ? t.slice(start, end + 1) : t.slice(start)
   try {
-    return JSON.parse(m[0])
+    return JSON.parse(candidate)
   } catch {
-    throw new Error(`Malformed JSON array in AI response: ${m[0].slice(0, 300)}`)
+    // Array troncato: prova a chiudere le quadre aperte.
+    if (end === -1 && depth > 0) {
+      try { return JSON.parse(candidate + ']'.repeat(depth)) } catch { /* cade sotto */ }
+    }
+    throw new Error(`Malformed JSON array in AI response: ${candidate.slice(0, 300)}`)
   }
 }

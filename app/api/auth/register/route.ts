@@ -25,11 +25,20 @@ export async function POST(request: Request) {
     if (password.length < 8) return NextResponse.json({ error: 'La password deve avere almeno 8 caratteri' }, { status: 400 })
     if (pacchetto && !PACCHETTO_SLUGS.has(pacchetto)) return NextResponse.json({ error: 'Pacchetto non valido' }, { status: 400 })
 
-    // In demo / senza DB non si registra davvero: risposta chiara.
-    if (isDemo() || !dbReady()) {
+    // Demo: risposta chiara 200 (nessuna registrazione reale).
+    if (isDemo()) {
       return NextResponse.json(
         { ok: false, demo: true, message: 'Registrazione non disponibile in modalità demo. Contattaci per attivare un account reale.' },
         { status: 200 },
+      )
+    }
+    // Produzione senza DB raggiungibile = errore server reale (503), non un 200
+    // silenzioso: il cliente deve sapere che la richiesta NON è stata registrata.
+    if (!dbReady()) {
+      console.error('[register] DATABASE non pronto: registrazione rifiutata (503)')
+      return NextResponse.json(
+        { ok: false, error: 'Servizio temporaneamente non disponibile. Riprova tra poco o contattaci.' },
+        { status: 503 },
       )
     }
 
