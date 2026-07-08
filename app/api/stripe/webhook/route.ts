@@ -79,10 +79,36 @@ async function requireStripeClienteId(obj: StripeObject, eventType: string): Pro
   return clienteId
 }
 
+async function handleConsulenzaPaid(obj: StripeObject) {
+  const meta = metadata(obj)
+  const consulenzaId = str(meta.consulenza_id) || str(meta.ref_id)
+  if (!consulenzaId) throw new Error('checkout consulenza senza consulenza_id')
+  const paymentIntent = typeof obj.payment_intent === 'string'
+    ? obj.payment_intent
+    : str((obj.payment_intent as StripeObject | undefined)?.id)
+  const paid = str(obj.payment_status) === 'paid' || str(obj.status) === 'complete'
+  const rows = await q(
+    `UPDATE consulenze
+       SET status = $2, stripe_payment_intent_id = COALESCE($3, stripe_payment_intent_id),
+           paid_at = CASE WHEN $2 = 'paid' THEN now() ELSE paid_at END, updated_at = now()
+     WHERE id = $1
+     RETURNING id`,
+    [consulenzaId, paid ? 'paid' : 'pending', paymentIntent || null],
+  )
+  if (!rows.length) throw new Error(`Consulenza ${consulenzaId} non trovata`)
+}
+
 async function handleCheckoutCompleted(obj: StripeObject) {
+  const meta = metadata(obj)
+
+  // One-off consulenza: pagamento singolo, nessun workspace da attivare.
+  if (str(meta.tipo) === 'consulenza') {
+    await handleConsulenzaPaid(obj)
+    return
+  }
+
   const customerId = str(obj.customer)
   const subscriptionId = str(obj.subscription)
-  const meta = metadata(obj)
   const profileId = str(meta.profile_id)
 
   // FLOW A (paga-prima): il checkout è nato da una registrazione self-serve. Il

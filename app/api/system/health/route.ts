@@ -5,7 +5,7 @@ import { isR2Configured } from '@/lib/storage'
 
 export const dynamic = 'force-dynamic'
 
-const LATEST_REQUIRED_MIGRATION = '026_preview_token.sql'
+const LATEST_REQUIRED_MIGRATION = '027_consulenze.sql'
 
 function hasEnv(name: string) {
   return Boolean(process.env[name]?.trim())

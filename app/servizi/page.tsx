@@ -381,10 +381,13 @@ export default function ServiziPage() {
             ))}
           </ul>
         </div>
-        <div className={styles.ctaActions} style={{ justifyContent: 'center', marginTop: '1.5rem' }}>
-          <a href={waLink('Ciao! Vorrei prenotare la consulenza legale AI & GDPR (30 min, €150) con lo Studio Legale BCS.')} target="_blank" rel="noopener" className={styles.primaryButton}>
+        <div className={styles.ctaActions} style={{ justifyContent: 'center', marginTop: '1.5rem', gap: 12, flexWrap: 'wrap' }}>
+          <Link href="/consulenza" className={styles.primaryButton}>
             <Scale size={18} />
-            Prenota la consulenza · €150
+            Prenota e paga · €150
+          </Link>
+          <a href={waLink('Ciao! Vorrei informazioni sulla consulenza legale AI & GDPR (30 min, €150) con lo Studio Legale BCS.')} target="_blank" rel="noopener" className={styles.secondaryButtonDark}>
+            Prima parlane su WhatsApp
           </a>
         </div>
       </section>

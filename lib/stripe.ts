@@ -148,6 +148,41 @@ export async function createStripeCheckoutSession(args: {
   return stripeRequest<StripeCheckoutSession>('/checkout/sessions', params, { idempotencyKey })
 }
 
+// Checkout ONE-OFF (mode=payment) per pagamenti singoli come la consulenza legale.
+// Diverso dagli abbonamenti (mode=subscription): nessun rinnovo, nessun cliente/
+// workspace richiesto. Idempotency-key per evitare doppio addebito su retry.
+export async function createOneOffCheckoutSession(args: {
+  refId: string           // id interno (es. consulenza_id) per collegare il pagamento
+  tipo: string            // 'consulenza' — usato dal webhook per instradare
+  descrizione: string
+  clienteEmail?: string | null
+  amountCents: number
+  successUrl: string
+  cancelUrl: string
+  extraMetadata?: Record<string, string>
+}): Promise<StripeCheckoutSession> {
+  if (args.amountCents <= 0) throw new Error('Importo non valido')
+
+  const params = new URLSearchParams()
+  appendForm(params, 'mode', 'payment')
+  appendForm(params, 'success_url', args.successUrl)
+  appendForm(params, 'cancel_url', args.cancelUrl)
+  appendForm(params, 'client_reference_id', args.refId)
+  appendForm(params, 'customer_email', args.clienteEmail || null)
+  appendForm(params, 'metadata[tipo]', args.tipo)
+  appendForm(params, 'metadata[ref_id]', args.refId)
+  for (const [k, v] of Object.entries(args.extraMetadata || {})) appendForm(params, `metadata[${k}]`, v)
+  appendForm(params, 'line_items[0][quantity]', 1)
+  appendForm(params, 'line_items[0][price_data][currency]', 'eur')
+  appendForm(params, 'line_items[0][price_data][unit_amount]', args.amountCents)
+  appendForm(params, 'line_items[0][price_data][product_data][name]', args.descrizione)
+  appendForm(params, 'payment_intent_data[metadata][tipo]', args.tipo)
+  appendForm(params, 'payment_intent_data[metadata][ref_id]', args.refId)
+
+  const idempotencyKey = crypto.createHash('sha256').update(`oneoff:${args.tipo}:${args.refId}`).digest('hex')
+  return stripeRequest<StripeCheckoutSession>('/checkout/sessions', params, { idempotencyKey })
+}
+
 export async function createStripePortalSession(args: {
   stripeCustomerId: string
   returnUrl: string
