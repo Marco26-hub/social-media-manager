@@ -19,8 +19,19 @@ export async function POST(request: Request) {
     const password = String(body.password || '')
     const pacchetto = String(body.pacchetto || '').trim().toLowerCase()
     const turnstileToken = typeof body.turnstile_token === 'string' ? body.turnstile_token : ''
+    const honeypot = typeof body.website === 'string' ? body.website : ''
+    const elapsedMs = typeof body.elapsed_ms === 'number' ? body.elapsed_ms : 99999
 
-    // Captcha anti-bot (no-op se TURNSTILE_SECRET_KEY non configurata).
+    // Anti-bot a zero dipendenze esterne:
+    // 1) honeypot: campo nascosto compilato solo dai bot → scarta (200 finto ok
+    //    per non far capire al bot che è stato individuato).
+    // 2) submit troppo veloce (<1.5s dall'apertura) = quasi certamente bot.
+    if (honeypot.trim() !== '' || elapsedMs < 1500) {
+      console.warn('[register] richiesta scartata (honeypot/timing)', { honeypot: Boolean(honeypot), elapsedMs })
+      return NextResponse.json({ ok: true, status: 'pending', message: 'Richiesta ricevuta.' })
+    }
+
+    // Captcha Turnstile (layer opzionale aggiuntivo: no-op se non configurato).
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || undefined
     if (!(await verifyTurnstile(turnstileToken, ip))) {
       return NextResponse.json({ error: 'Verifica anti-bot fallita. Riprova.' }, { status: 400 })

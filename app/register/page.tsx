@@ -26,6 +26,11 @@ function RegisterForm() {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [turnstileToken, setTurnstileToken] = useState('')
+  // Honeypot: campo nascosto che gli umani non vedono/compilano. Se un bot lo
+  // riempie, il server scarta la richiesta. Anti-bot a zero dipendenze esterne.
+  const [website, setWebsite] = useState('')
+  // Timestamp di apertura form: submit in <2s = quasi certamente bot.
+  const [formOpenedAt] = useState(() => Date.now())
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -35,7 +40,7 @@ function RegisterForm() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome, azienda, email, telefono, password, pacchetto, turnstile_token: turnstileToken }),
+        body: JSON.stringify({ nome, azienda, email, telefono, password, pacchetto, turnstile_token: turnstileToken, website, elapsed_ms: Date.now() - formOpenedAt }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -124,6 +129,13 @@ function RegisterForm() {
         <div className={styles.field}>
           <span className={styles.label}>Password</span>
           <input className={styles.input} type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" placeholder="Almeno 8 caratteri" />
+        </div>
+
+        {/* Honeypot: nascosto agli umani (off-screen + aria-hidden + tabIndex -1). */}
+        <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', top: 'auto', width: 1, height: 1, overflow: 'hidden' }}>
+          <label>Se sei umano lascia vuoto questo campo
+            <input type="text" tabIndex={-1} autoComplete="off" value={website} onChange={e => setWebsite(e.target.value)} />
+          </label>
         </div>
 
         <TurnstileWidget onToken={setTurnstileToken} />
