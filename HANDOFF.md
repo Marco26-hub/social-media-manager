@@ -2,12 +2,89 @@
 
 > Documento per AI agent multipli (Claude CLI, Cursor/Cline, Codex). Lavoriamo come un team unificato.
 
-**Data ultimo aggiornamento**: 2026-07-08 (Codex: calendario premium + generazioni trend-first)
+**Data ultimo aggiornamento**: 2026-07-08 sera (Claude CLI: audit go-live 121 blocker, fix deploy, 8 CRITICAL + HIGH, pagine legali, flow A registrazione paga-prima, consulenza €150 one-off + UI admin)
 **Progetto**: Social Automation — SaaS social media management per agenzie
 **Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Gemini/OpenRouter/Anthropic/OpenCode/Ollama)
 **Percorso locale**: `/Users/md/Documents/social_automation_v2`
 **Repo**: `https://github.com/Marco26-hub/social-media-manager.git`
 **Deploy live**: `https://social-media-manager-zte4.onrender.com` (Render free, service id `srv-d8up0lvavr4c73fjd1k0`)
+
+---
+
+## 🆕 Sessione 2026-07-08 sera (Claude CLI) — go-live hardening, legale, pagamenti one-off
+
+### 🚨 FIX DEPLOY (era ROTTO)
+I deploy Render fallivano con "Exited with status 1 while running your code": il gate admin CRIT-7 faceva `exit 1` su OGNI deploy prod senza `ADMIN_EMAIL`/`ADMIN_PASSWORD`, bloccando anche il setup. **Fixato** (`766a260`): hardening admin ancorato a `PUBLISH_ENABLED=true` (go-live reale), non a `NODE_ENV=production`. In setup → warning, deploy procede. Al go-live reale → creds admin obbligatorie. Deploy ora verde (`/api/system/health` espone `version` = commit SHA per confermare quale build è live).
+
+### ✅ Audit go-live multi-agente (10 scout paralleli + verify adversariale)
+**121/135 blocker confermati** su 10 dimensioni. Tutti gli 8 CRITICAL chiusi + HIGH principali. Vedi sezione "COSA RESTA PER IL GO-LIVE" in fondo.
+
+### ✅ Chiuso in questa sessione (commit su `main`)
+- **8 CRITICAL** (`2b533ed`→`806114d`): host Blotato `backend.blotato.com`, auth fail-closed DB assente, dry_run per-cliente nel publisher, link_prodotto persistito+in caption, pacchetto Slancio mappato+fallback Starter, admin default fatale (ora al go-live), AGENTS_SCHEDULE marcato roadmap.
+- **HIGH publish** (`c914c9f` cowork + `732cee0`+altri): publish lock atomico (`publish_lock_id`), errori sync persistiti (`errore_tecnico`+`log_pubblicazioni`), Blotato 2xx-senza-id → throw, cross-post adattato per canale (`lib/social-adapt.ts`: tronca caption/hashtag per piattaforma).
+- **HIGH Stripe** (cowork `c914c9f` + verificati): idempotency `stripe_webhook_events` (mig 025), timestamp tolerance 300s, livemode check, ON CONFLICT no cliente_id, Idempotency-Key checkout, timeout+retry.
+- **HIGH security** (`f964faa`+`21f0fac`+`0336689`): mask secret keys in GET settings, `preview_token` opaco anti-IDOR (mig 026), SSRF con risoluzione DNS reale (`lib/media-validate.ts`).
+- **HIGH ops** (`412c193`+`35b7332`+`ffc13ff`): health 503 su fallimento critico DB (200 su env opzionali → non boccia deploy), check Stripe/Meta/email, email onboarding Resend (`lib/email.ts`, no-op senza key).
+- **HIGH AI** (`ec390f7`): carosello 3-5 slide validato HARD + retry, `extractJSONChecked` truncated flag; **fix merge cowork**: `visual_preset`/`use_trending_effects` erano hardcoded `'trending'`/`true`, ora dal body.
+- **MEDIUM** (`35b7332`): `isMissingPaymentsSchema` regex→pg code, `extractJSONArray` bilanciato, register 503 se DB down.
+- **H15 captcha** (`c4fbc33`+`5e91de7`): Turnstile code-ready (opzionale) + **honeypot+timing anti-bot a zero dipendenze** (no Cloudflare/Supabase necessari).
+
+### ✅ Effetti visual reel/carosello (`bd6b704`)
+Migration `024_visual_effects.sql`: `visual_preset` (trending/premium/minimal/classico) + `use_trending_effects` + `visual_effects[]`. `lib/blotato-visual.ts::planVisual` arricchisce il prompt Blotato con descrittori virali/premium. **UI selector NON ancora fatta** in `/dashboard/piano` (task aperto).
+
+### ✅ Pagine legali (compliance del sito stesso)
+`/privacy` (GDPR art.13), `/cookie-policy` (Garante 2021), `/termini` (recesso, AI), `/trasparenza-ai` (AI Act art.50) + **cookie banner** (solo tecnici) + link footer + sitemap. Fonte dati `lib/legal-config.ts` con placeholder `[DA COMPILARE]`. Layout `components/LegalShell.tsx`. **Sono BOZZE da validare con Studio BCS.** Vedi `CHECKLIST_LEGALE.md`.
+
+### ✅ Partnership Studio BCS + consulenza €150
+- Sezione legale linkata in nav ("Legale & AI"). Partnership BCS = blocco autorevolezza (monogramma, badge "Partner verificato", Avv. Vincenzo Sapone Cassazionista).
+- **Pricing consulenza €150/30min** su landing+servizi (Cassazionista + parere scritto incluso).
+
+### ✅ Flow A — registrazione paga-prima (`b370101`)
+Cliente si registra → paga subito su Stripe Checkout → account attivato AUTOMATICAMENTE dal webhook `checkout.session.completed`. `lib/provisioning.ts::activateRegistration()` = logica condivisa (admin-attiva + webhook). Retry-safe (email pending riusa profilo). Degrada a pending+admin se Stripe non configurato.
+
+### ✅ Consulenza one-off €150 in DB + UI admin (`a208395`+`20bdf7b`+`4b74218`)
+- Migration `027_consulenze.sql`: tabella `consulenze` (pending|paid|cancelled).
+- `lib/stripe.ts::createOneOffCheckoutSession` (mode=payment, non subscription).
+- `/consulenza` pagina booking → Stripe → webhook marca `paid`.
+- `POST /api/consulenza` + webhook branch `tipo=consulenza`.
+- **UI admin**: sezione "Consulenze legali" in `/dashboard/pagamenti` (KPI incasso/pagate/in-attesa + lista). API `/api/admin/consulenze`.
+- CTA landing = solo "Prenota e paga · €150" (rimosso WhatsApp).
+
+### ⚠️ NOTA MULTI-AGENT: Codex lavora in parallelo su questo repo
+Durante la sessione Codex ha committato in parallelo (commit inglese lowercase: "harden Stripe and Blotato", "support manual mp4 uploads", ecc.). Il repo si è riconciliato in storia lineare. **Verificare sempre `npm run build` dopo commit cowork** (vedi memoria cowork-breaks-build). Un artefatto merge trovato e fixato: visual_preset hardcoded.
+
+---
+
+## 🎯 COSA RESTA PER IL GO-LIVE
+
+### 🔴 AZIONI UTENTE su Render (obbligatorie) — nessuna riga di codice
+1. **`ADMIN_EMAIL` + `ADMIN_PASSWORD`** (≥8 char) reali. **Obbligatorie quando metti `PUBLISH_ENABLED=true`** (altrimenti deploy fallisce di proposito → sicurezza).
+2. **`NEXT_PUBLIC_DEMO_MODE=false`** esplicito (rebuild: Clear cache & deploy).
+3. **`BLOTATO_API_URL=https://backend.blotato.com`** (verifica non sia `api.blotato.com`).
+4. **Stripe**: `STRIPE_SECRET_KEY` (sk_live_) + `STRIPE_WEBHOOK_SECRET`. Crea webhook Stripe → `/api/stripe/webhook` con eventi: `checkout.session.completed`, `customer.subscription.*`, `invoice.*`. **Serve sia per abbonamenti che per consulenze €150.**
+5. **`STORAGE_REGION`** corretta per Backblaze B2 (es. `us-west-004`) + verifica `STORAGE_*` presenti (senza, immagini spariscono a ogni deploy).
+6. **Migrations su prod**: 024, 025, 026, 027 si applicano in auto (`preDeployCommand: npm run migrate`). Verifica dopo deploy che `/api/system/health` → `latestMigrationApplied:true`.
+7. Compila **`lib/legal-config.ts`** con dati reali azienda (P.IVA, ragione sociale, sede, PEC) — vedi `CHECKLIST_LEGALE.md`.
+
+### 🟡 AZIONI UTENTE — opzionali / quando pronti
+- `BLOTATO_API_KEY` + `PUBLISH_ENABLED=true` (kill-switch pubblicazione reale). Prima resta dry-run.
+- `RESEND_API_KEY` + `EMAIL_FROM` + `AGENCY_NOTIFY_EMAIL` (email onboarding, altrimenti no-op).
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY` (captcha extra; honeypot+rate-limit già proteggono).
+- `META_APP_ID`+`META_APP_SECRET` (Insights IG automatiche).
+- Far **validare le 4 pagine legali allo Studio BCS** + accettare i DPA (art.28) dei fornitori (Stripe, Neon, Render, Blotato, Meta).
+- `dry_run` per-cliente in settings: metterlo a FALSE per i clienti da pubblicare davvero (default = dry_run per sicurezza).
+
+### 🟢 TASK CODICE ancora aperti (backlog, non bloccanti)
+- **UI selector effetti visual** in `/dashboard/piano`: "🔥 Trending / ✨ Premium / ⚪ Minimal / 📰 Classico" + checkbox "effetti virali" → passa `visual_preset`+`use_trending_effects` a `/api/generate/{content,plan}` (backend già pronto).
+- **Cron scheduler**: i 4 agenti weekly (weekly-seo, competitor, client-report, ads-optimizer) NON esistono. O implementarli su Neon + `type:cron` in render.yaml + `CRON_SECRET`, oppure lasciare com'è (i pacchetti NON promettono cron autonomi — è human-in-the-loop).
+- **MEDIUM/LOW residui** (basso ROI): logging strutturato `lib/logger.ts`, timezone drift (`date-fns-tz`), `generaVisual` mirroring su storage, story sticker link a Blotato, timeout gateway AI totale, `charge.refunded` handler webhook, ~50 LOW cosmetici (aria-*, key React, cookie flags).
+- **Lead generation reale** (search API) — ancora simulato (vedi memoria lead-research-rebuild).
+
+### ✅ Test E2E consigliato prima di aprire ai clienti
+1. Registra cliente reale → checkout Stripe → verifica account attivato + login.
+2. Prenota consulenza €150 → paga → verifica riga `paid` in `/dashboard/pagamenti` sezione Consulenze.
+3. Genera piano/contenuto con foto → approva → (con PUBLISH_ENABLED=true su 1 cliente non-dry_run) pubblica 1 post/canale → verifica link prodotto cliccabile + webhook status PUBBLICATO.
+4. Soft-launch 1-2 clienti pilota, monitora `/api/system/health` + Stripe + Blotato per 2 settimane, poi apri self-serve.
 
 ---
 
