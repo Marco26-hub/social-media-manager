@@ -267,9 +267,9 @@ export default function IlMioPianoPage() {
                 </p>
               )}
             </div>
-            <div className="rounded-2xl bg-white p-4 text-left shadow-sm sm:text-right">
+            <div className="shrink-0 rounded-2xl bg-white p-4 text-left shadow-sm sm:text-right">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Canone</p>
-              <p className="mt-1 whitespace-nowrap text-3xl font-bold text-gray-900">{plan.pacchetto.prezzo}<span className="text-base font-medium text-gray-500">/mese</span></p>
+              <p className="mt-1 whitespace-nowrap text-2xl font-bold text-gray-900">{plan.pacchetto.prezzo}<span className="text-base font-medium text-gray-500">/mese</span></p>
               <p className="mt-1 text-xs text-gray-500">{plan.pacchetto.setup}</p>
             </div>
           </div>
@@ -306,7 +306,7 @@ export default function IlMioPianoPage() {
               <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-emerald-500 transition-all" style={{ width: quotaBarWidth }} />
             </div>
             <p className="mt-3 text-xs leading-relaxed text-gray-500">
-              Reset mensile calcolato a runtime su {plan.mese.inizio} → {plan.mese.fine}. Conta i contenuti del mese con stato diverso da BOZZA/ERRORE.
+              La quota si azzera ogni mese ({plan.mese.inizio} → {plan.mese.fine}). Contiamo i contenuti del mese, escluse bozze ed errori.
             </p>
           </div>
         </section>
@@ -417,11 +417,18 @@ export default function IlMioPianoPage() {
             </>
           )}
         </div>
-        <div className="card p-6">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Nota mapping piano</p>
+        <div className="card flex flex-col p-6">
+          <div className="flex items-center gap-2 text-sm font-semibold text-brand-700">
+            <Sparkles className="h-5 w-5" />
+            Vuoi crescere di più?
+          </div>
           <p className="mt-3 text-sm leading-relaxed text-gray-600">
-            Il valore tecnico <span className="font-semibold text-gray-900">{plan.pacchetto.piano_legacy}</span> viene mappato al pacchetto commerciale <span className="font-semibold text-gray-900">{plan.pacchetto.slug}</span>. La quota mensile usa sempre il valore reale salvato sul cliente.
+            Con un pacchetto superiore ottieni più contenuti, più canali e nuovi servizi. Ogni livello include tutto quello del precedente.
           </p>
+          <Link href="/servizi#pacchetti" className="btn-secondary mt-4 w-full justify-center text-sm sm:w-auto sm:self-start">
+            Confronta i pacchetti
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
       </section>
     </div>
