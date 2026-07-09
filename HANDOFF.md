@@ -2,12 +2,30 @@
 
 > Documento per AI agent multipli (Claude CLI, Cursor/Cline, Codex). Lavoriamo come un team unificato.
 
-**Data ultimo aggiornamento**: 2026-07-08 sera (Claude CLI: audit go-live 121 blocker, fix deploy, 8 CRITICAL + HIGH, pagine legali, flow A registrazione paga-prima, consulenza €150 one-off + UI admin)
+**Data ultimo aggiornamento**: 2026-07-10 (Claude CLI: area cliente `/portale` separata dall'admin + landing premium/mobile-first + review dashboard cliente)
 **Progetto**: Social Automation — SaaS social media management per agenzie
 **Stack**: Next.js 15.5.19 + Neon/Postgres + NextAuth + Tailwind + AI (Gemini/OpenRouter/Anthropic/OpenCode/Ollama)
 **Percorso locale**: `/Users/md/Documents/social_automation_v2`
 **Repo**: `https://github.com/Marco26-hub/social-media-manager.git`
 **Deploy live**: `https://social-media-manager-zte4.onrender.com` (Render free, service id `srv-d8up0lvavr4c73fjd1k0`)
+
+---
+
+## 🆕 Sessione 2026-07-10 (Claude CLI) — area cliente `/portale`, landing premium + mobile-first
+
+### 🟢 Area CLIENTE separata `/portale` (nuova) — il cliente NON entra nella dashboard operatore
+- **`app/portale/`** (layout + page) = spazio del cliente finale, topbar minima (brand + Esci), **niente sidebar di gestione**. Mostra SOLO: piano attivo + features, quota contenuti del mese (X/Y), abbonamento (stato + prossimo rinnovo + ultimo pagamento) con bottone **"Paga e gestisci"**, e "I tuoi risultati" (report reale: pubblicati/in lavorazione, canali/formati top, sintesi). **Nessuna azione di approvazione** — i contenuti li approva l'agenzia, non il cliente.
+- **`app/api/stripe/portal/route.ts`** (nuovo): POST → `requireClienteId` → `stripe_customer_id` del cliente → `createStripePortalSession` (lib/stripe.ts) → apre lo **Stripe Customer Portal** (carta, fatture, insoluti, disdetta). Il "mensile" NON è un pagamento manuale: l'abbonamento è **ricorrente** (`createStripeCheckoutSession` `mode=subscription interval=month`, creato alla registrazione flow A) e Stripe rinnova da solo; il portale serve a gestirlo/saldare.
+- **`middleware.ts`**: `/portale` richiede login; il **cliente non-admin viene sempre reindirizzato da `/dashboard` → `/portale`**; post-login: admin → `/dashboard/clienti`, cliente → `/portale`. (Prima i client-role vedevano un sottoinsieme di `/dashboard`; ora hanno l'area dedicata.)
+- Riusa `/api/data/il-mio-piano` + `/api/data/report` (già sicuri multi-tenant). `/dashboard/il-mio-piano` resta come **preview admin** del piano di un cliente.
+- ⚠️ Il "Paga e gestisci" richiede `STRIPE_SECRET_KEY` + un `stripe_customer_id` sul cliente (esiste dopo la registrazione con pagamento). In demo mostra errore controllato.
+
+### Landing — premium + mobile-first
+- Pass premium completato (bordi gradient card, a11y hit-area 44px, ritmo, nav "Prova gratis"+Accedi, hover composto col tilt 3D). Copy italiano pro anti-slop, pacchetti scala cumulativa 3×2 con nota "Ogni pacchetto include tutto del precedente" + box "Include tutto di X".
+- **Mobile-first**: nav mobile pulita (brand + CTA, link ancora nascosti), hero e h2 ridimensionati → hero completo visibile in una schermata.
+
+### Review dashboard cliente `/dashboard/il-mio-piano` (costruita da OpenCode/Codex)
+- Sicurezza multi-tenant OK. Rimossa card "Nota mapping piano" (gergo tecnico esposto al cliente) → upsell. Fix canone tagliato.
 
 ---
 
