@@ -1344,24 +1344,17 @@
 }
 
 @media (max-width: 640px) {
-  /* Navbar sticky anche su mobile: la pagina è ~10 schermate, senza il CTA
-     persistente il primo bottone visibile è sotto il fold. I link diventano
-     una riga scorrevole sotto brand+CTA (content parity, non display:none). */
-  .navbar { top: 8px; padding: 10px; flex-wrap: wrap; }
-  .navLinks {
-    order: 3;
-    width: 100%;
-    overflow-x: auto;
-    justify-content: flex-start;
-    gap: 18px;
-    padding: 10px 4px 2px;
-    -webkit-overflow-scrolling: touch;
-  }
-  .navLinks a { white-space: nowrap; }
+  /* Mobile-first: nav pulita = solo brand + CTA. I 7 link ancora affollavano
+     la riga e "Accedi" veniva tagliato → su mobile la navigazione è lo scroll
+     e il CTA "Prova gratis" resta sempre visibile (Accedi anche nel footer). */
+  .navbar { top: 8px; padding: 10px 12px; }
+  .navLinks { display: none; }
   .brand span:last-child { display: none; }
-  .navCta { padding: 10px 14px; font-size: 13px; white-space: nowrap; }
-  .hero { padding-top: 32px; }
-  .heroTitle { font-size: clamp(40px, 12vw, 60px); }
+  .navCta { padding: 10px 16px; font-size: 13px; white-space: nowrap; }
+  .hero { padding-top: 24px; }
+  .heroTitle { font-size: clamp(32px, 9vw, 44px); }
+  .h2 { font-size: clamp(29px, 7.4vw, 42px); }
+  .lead, .heroLead { font-size: 16px; }
   .grid3 { grid-template-columns: 1fr; }
   .flowStep { grid-template-columns: auto 1fr; padding: 18px; gap: 14px; }
   .pricing, .finalCta { padding: 40px 22px; border-radius: 30px; }
