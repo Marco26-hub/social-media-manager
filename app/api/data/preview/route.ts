@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { dbReady, q } from '@/lib/db'
 import { getTableColumns, mediaSlotColumns } from '@/lib/db-schema'
+import { requireClienteId } from '@/lib/auth-utils'
+import { apiError } from '@/lib/api-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,16 +26,19 @@ export async function GET(request: Request) {
     const calendarioColumns = await getTableColumns('calendario')
     const hasPreviewToken = calendarioColumns.has('preview_token')
 
-    // Preferisci SEMPRE il token opaco (anti-IDOR). Il fallback per id_contenuto
-    // resta per i link inviati prima della migration 026, ma è deprecato.
+    // La via PUBBLICA (link condivisibile) è SOLO il preview_token opaco (UUID,
+    // non indovinabile). L'accesso per id_contenuto — che è derivato dal timestamp
+    // e quindi enumerabile — richiede login + scoping al cliente dell'utente:
+    // altrimenti un anonimo poteva leggere contenuti di qualsiasi cliente (IDOR).
     let whereClause: string
-    let param: string
+    let params: unknown[]
     if (token && UUID_RE.test(token) && hasPreviewToken) {
       whereClause = 'c.preview_token = $1'
-      param = token
+      params = [token]
     } else {
-      whereClause = 'c.id_contenuto = $1'
-      param = id || token
+      const cid = await requireClienteId() // 401 se non autenticato / senza accesso
+      whereClause = 'c.id_contenuto = $1 AND c.cliente_id = $2'
+      params = [id || token, cid]
     }
 
     const optionalText = (column: string) => (
@@ -69,12 +74,11 @@ export async function GET(request: Request) {
        WHERE ${whereClause}
        ORDER BY c.created_at DESC
        LIMIT 1`,
-      [param],
+      params,
     )
     if (!rows.length) return NextResponse.json({ error: 'Contenuto non trovato' }, { status: 404 })
     return NextResponse.json(rows[0])
   } catch (error) {
-    console.error('[preview:data] errore caricamento anteprima', error)
-    return NextResponse.json({ error: 'Errore anteprima' }, { status: 500 })
+    return apiError(error)
   }
 }

@@ -71,6 +71,7 @@ export async function middleware(request: NextRequest) {
   const isProtectedApi =
     pathname.startsWith('/api/generate') ||
     pathname.startsWith('/api/system/local') ||
+    pathname.startsWith('/api/admin') ||
     (pathname.startsWith('/api/data') && !isPublicApprovalApi && !isPublicPreviewApi)
 
   if (isApprove || isPreview) return NextResponse.next()

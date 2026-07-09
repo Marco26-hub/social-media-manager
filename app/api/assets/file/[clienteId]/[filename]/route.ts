@@ -16,6 +16,9 @@ const MIME_BY_EXT: Record<string, string> = {
 }
 
 function safeSegment(value: string) {
+  // Rifiuta i segmenti composti solo da punti ('.', '..', …): difesa-in-profondità
+  // contro path-traversal (il set [._-] da solo ammetteva '..').
+  if (/^\.+$/.test(value)) return ''
   return /^[a-zA-Z0-9._-]+$/.test(value) ? value : ''
 }
 

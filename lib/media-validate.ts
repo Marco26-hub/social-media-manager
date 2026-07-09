@@ -51,7 +51,7 @@ function isBlockedHostLexical(hostname: string): boolean {
 // Check COMPLETO: risolve il DNS del hostname e blocca se un qualsiasi IP risolto è
 // privato. Difende dal "DNS rebinding"/SSRF dove evil.com → 127.0.0.1 (il check
 // lessicale da solo passerebbe). I media legittimi sono su CDN/URL pubblici.
-async function isBlockedHost(hostname: string): Promise<boolean> {
+export async function isBlockedHost(hostname: string): Promise<boolean> {
   if (isBlockedHostLexical(hostname)) return true
   // Se è già un IP letterale, il lessicale ha già deciso: niente DNS.
   if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) || hostname.includes(':')) return false

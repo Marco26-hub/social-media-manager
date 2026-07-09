@@ -60,8 +60,10 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'status non valido' }, { status: 400 })
     }
 
-    const rows = await q('SELECT id, cliente_id, contenuto_id FROM approval_tokens WHERE token = $1 AND expires_at > now()', [token])
-    if (!rows.length) return NextResponse.json({ error: 'Token non valido o scaduto' }, { status: 404 })
+    // status='pending' rende la decisione MONOUSO: una volta approvato/rifiutato il
+    // token non può più ribaltare la scelta (prima era ripetibile entro i 7 giorni).
+    const rows = await q("SELECT id, cliente_id, contenuto_id FROM approval_tokens WHERE token = $1 AND expires_at > now() AND status = 'pending'", [token])
+    if (!rows.length) return NextResponse.json({ error: 'Token non valido, scaduto o già usato' }, { status: 404 })
 
     const row = rows[0] as Record<string, string>
 

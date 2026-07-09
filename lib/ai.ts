@@ -553,10 +553,19 @@ const GEMINI_SAFETY = [
 // Scarica un'immagine e la converte in inline_data base64 per Gemini (vision).
 async function fetchImageInline(url: string): Promise<{ inline_data: { mime_type: string; data: string } } | null> {
   try {
+    // SSRF guard: solo http/https, blocca host privati/loopback/metadata cloud (con
+    // risoluzione DNS anti-rebinding), niente redirect verso host interni. Prima si
+    // faceva fetch() grezzo su URL fornito dall'utente (media_urls) → SSRF cieco.
+    let parsed: URL
+    try { parsed = new URL(url) } catch { return null }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    const { isBlockedHost } = await import('@/lib/media-validate')
+    if (await isBlockedHost(parsed.hostname)) return null
     const controller = new AbortController()
     const t = setTimeout(() => controller.abort(), 10000)
-    const res = await fetch(url, { signal: controller.signal })
+    const res = await fetch(url, { signal: controller.signal, redirect: 'manual' })
     clearTimeout(t)
+    if (res.status >= 300 && res.status < 400) return null // redirect verso host interno bloccato
     if (!res.ok) return null
     const mime = res.headers.get('content-type') || 'image/jpeg'
     if (!mime.startsWith('image/')) return null

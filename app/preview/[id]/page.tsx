@@ -89,6 +89,8 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
   const [ideaVisual, setIdeaVisual] = useState<string | null>(null)
   const [voiceoverScript, setVoiceoverScript] = useState<string | null>(null)
   const [musicMood, setMusicMood] = useState<string | null>(null)
+  // Link condivisibile basato sul preview_token opaco (non sull'id enumerabile).
+  const [shareUrl, setShareUrl] = useState('')
 
   useEffect(() => {
     params.then(p => setId(p.id))
@@ -145,11 +147,20 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
   useEffect(() => {
     if (!id) return
     let annullato = false
-    fetch(`/api/data/preview?id=${encodeURIComponent(id)}`)
+    // Il link condiviso porta ?token=UUID (via pubblica sicura). Senza token si usa
+    // l'id, ma quel percorso ora richiede login lato API (anti-IDOR).
+    const tok = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('token') : null
+    const query = tok ? `token=${encodeURIComponent(tok)}` : `id=${encodeURIComponent(id)}`
+    fetch(`/api/data/preview?${query}`)
       .then(r => r.ok ? r.json() : null)
       .then((d: Record<string, unknown> | null) => {
         if (!d || annullato) return
         const s = textValue
+        // Costruisci il link condivisibile col preview_token opaco.
+        const pt = s(d.preview_token)
+        if (pt && typeof window !== 'undefined') {
+          setShareUrl(`${window.location.origin}/preview/${encodeURIComponent(id)}?token=${encodeURIComponent(pt)}`)
+        }
         // Contenuto REALE trovato → è la fonte di verità: sovrascrive i dati demo,
         // ANCHE quando un campo è vuoto (es. nessuna foto → mostra placeholder, non
         // l'immagine demo finta). Prima il ripiego demo restava se il reale era vuoto.
@@ -288,7 +299,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
           <div className="flex flex-wrap gap-2">
             {/* WhatsApp */}
             <a
-              href={`https://wa.me/?text=${encodeURIComponent(`📱 Anteprima contenuto per ${DEMO_DATA.cliente_nome}\n\nHook: ${hook}\n\n${typeof window !== 'undefined' ? window.location.href : ''}\n\n---\nSocial Automation V2`)}`}
+              href={`https://wa.me/?text=${encodeURIComponent(`📱 Anteprima contenuto per ${DEMO_DATA.cliente_nome}\n\nHook: ${hook}\n\n${shareUrl || (typeof window !== 'undefined' ? window.location.href : '')}\n\n---\nSocial Automation V2`)}`}
               target="_blank" rel="noopener"
               className="flex items-center gap-1.5 px-4 py-2 bg-green-500 text-white text-xs font-medium rounded-full hover:bg-green-600 transition-colors"
             >
@@ -298,7 +309,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
 
             {/* Telegram */}
             <a
-              href={`https://t.me/share/url?url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}&text=${encodeURIComponent(`📱 Anteprima contenuto: ${hook}`)}`}
+              href={`https://t.me/share/url?url=${encodeURIComponent(shareUrl || (typeof window !== 'undefined' ? window.location.href : ''))}&text=${encodeURIComponent(`📱 Anteprima contenuto: ${hook}`)}`}
               target="_blank" rel="noopener"
               className="flex items-center gap-1.5 px-4 py-2 bg-blue-500 text-white text-xs font-medium rounded-full hover:bg-blue-600 transition-colors"
             >
@@ -308,7 +319,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
 
             {/* Email */}
             <a
-              href={`mailto:?subject=${encodeURIComponent(`Anteprima contenuto - ${DEMO_DATA.cliente_nome}`)}&body=${encodeURIComponent(`Ciao,\n\nti inviamo l'anteprima del contenuto per ${DEMO_DATA.cliente_nome}.\n\nHook: ${hook}\n\nLink: ${typeof window !== 'undefined' ? window.location.href : ''}\n\n---\nSocial Automation V2`)}`}
+              href={`mailto:?subject=${encodeURIComponent(`Anteprima contenuto - ${DEMO_DATA.cliente_nome}`)}&body=${encodeURIComponent(`Ciao,\n\nti inviamo l'anteprima del contenuto per ${DEMO_DATA.cliente_nome}.\n\nHook: ${hook}\n\nLink: ${shareUrl || (typeof window !== 'undefined' ? window.location.href : '')}\n\n---\nSocial Automation V2`)}`}
               className="flex items-center gap-1.5 px-4 py-2 bg-gray-600 text-white text-xs font-medium rounded-full hover:bg-gray-700 transition-colors"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 4l-10 8L2 4"/></svg>
@@ -317,7 +328,7 @@ export default function PreviewPage({ params }: { params: Promise<{ id: string }
 
             {/* Copia link */}
             <button
-              onClick={() => navigator.clipboard?.writeText(typeof window !== 'undefined' ? window.location.href : '')}
+              onClick={() => navigator.clipboard?.writeText(shareUrl || (typeof window !== 'undefined' ? window.location.href : ''))}
               className="flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 text-xs font-medium rounded-full border border-gray-200 hover:bg-gray-50 transition-colors"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>

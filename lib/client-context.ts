@@ -63,7 +63,13 @@ export function mergeBrandIdentity(context: ClientGenerationContext, fallbackBra
       contenuti_mese: context.cliente.contenuti_mese,
     } : undefined,
     prodotti_attivi: context.prodotti.slice(0, 12),
-    settings: context.settings,
+    // SICUREZZA: NON includere i segreti nel brand — questo oggetto viene
+    // serializzato nel prompt e inviato ai provider AI (OpenRouter/Gemini/…).
+    // Filtra le chiavi segrete (blotato_api_key, token, password, webhook…).
+    settings: context.settings.filter(s => {
+      const k = typeof s.chiave === 'string' ? s.chiave.toLowerCase() : ''
+      return !/(api[_-]?key|secret|token|password|webhook)/.test(k)
+    }),
     contesto_fonte: context.source,
   }
 }
