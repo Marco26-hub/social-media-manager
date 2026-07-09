@@ -27,6 +27,31 @@
 ### Review dashboard cliente `/dashboard/il-mio-piano` (costruita da OpenCode/Codex)
 - Sicurezza multi-tenant OK. Rimossa card "Nota mapping piano" (gergo tecnico esposto al cliente) → upsell. Fix canone tagliato.
 
+### Report cliente PREMIUM `/portale` (`7eedaeb`)
+- Nuovo `app/portale/portale.module.css`: palette premium coerente con la landing (Fraunces display, cream + verde brand + oro, ombre/sheen). Layout+page ristilizzati: numeri grandi Fraunces, barra quota oro→verde, tiles risultati, barre canali/formati oro, "Paga e gestisci" verde. Sintesi report filtrata (fuori "funnel non_classificato").
+
+### Landing — pulsanti Admin + Cliente (`284bc43`)
+- Navbar: `[Admin]` (→ /dashboard) `[Cliente]` (→ /portale) accanto a "Prova gratis" (`.navAccess`/`.navGhost`). Mobile: brand + Admin/Cliente (Prova gratis nell'hero). Footer: Area Admin + Area Cliente.
+
+### Bug fix — upload multi-immagine (`0fb0daa`)
+- `app/api/assets/upload/route.ts`: era **all-or-nothing** (un solo file HEIC/>8MB → 400 su tutta la richiesta, nessuna immagine caricata → sembrava "multi-upload rotto"). Ora **successo parziale**: carica i validi, riporta `skipped` (400 solo se tutti scartati). Pagina social mostra avviso non bloccante + reset input.
+
+### Feature — piano editoriale weekend (`90fd0aa`)
+- Non esisteva né skip né opzione (date scelte dall'AI in un range di 7 gg). Nuovo toggle **"Includi weekend"** (default ON) in `piano/page.tsx` → `include_weekend` nel body → prompt condizionale (`plan/route.ts:245`) + **enforcement deterministico** in `sanitizeItem` (se escluso: sab→ven, dom→lun, `getUTCDay`).
+
+### ✅ Audit link/bottoni ADMIN — PULITO
+- 21 voci sidebar tutte valide, 43 endpoint API esistenti con metodi HTTP corretti, nessun bottone no-op, tutti i flussi cablati. **1 nota minore (LOW, da fare)**: `app/dashboard/onboarding/page.tsx:170-200` `generaContenuti` ha `catch {}` silenzioso e avanza allo step 5 anche se la generazione fallisce (mostra "0 contenuti"). Fix: raccogliere gli errori (readApiError) e non avanzare/segnalare se `count===0`.
+
+### 📊 Gap analysis "ottica agenzia web" (i 4 gap top per impatto)
+1. **Automazione/cron reale degli agenti NON implementata** — claim "6 agenti automatici" ma `render.yaml` è solo `type: web`, nessun cron, un solo agente reale (`prospect-scraper-agent`). Tutto on-demand → non scala. Spec pronte in `HYBRID_EXECUTION_MODEL.md`/`AGENTS_SCHEDULE.md`. **Promise-vs-reality: allineare doc/vendita o implementare.**
+2. **Approvazione lato cliente** assente nel `/portale` (oggi approva solo l'operatore). Riusabili: `preview_token` + `/preview/[id]` + stati calendario + `notifyCliente`.
+3. **White-label/branding agenzia** assente (nome/logo/dominio/tema per-tenant) → blocca il modello reseller. Base: `020_clienti_blog_domain.sql`.
+4. **Analytics social VERE cross-canale** — reali solo Meta (IG/FB via `lib/meta-insights.ts`); altri canali = conteggi interni. È il "gap #1 vs concorrenza" al rinnovo. Replicare il pattern OAuth+sync o cablare `get_post_analytics` di Blotato.
+- Altri: fattura elettronica SDI (obbligo B2B IT), team/inviti, ticketing, DAM/brand kit, A/B test, contratti/firma.
+
+### 🔐 TEST DI SICUREZZA — LANCIATO, risultati DA RACCOGLIERE (rieseguire in nuova sessione)
+- Avviato audit a 6 dimensioni (IDOR/multi-tenant, SQL injection, SSRF, secret/info-leak, auth/session/webhook/rate-limit, XSS/headers/route-pubbliche/upload) ma la sessione si è chiusa prima del consolidamento. **NON ci sono ancora conclusioni verificate.** Vedi il prompt "nuova conversazione" per rilanciarlo pulito, verificare i finding gravi in modo adversariale, e fixare i CRITICAL/HIGH.
+
 ---
 
 ## 🆕 Sessione 2026-07-08 sera (Claude CLI) — go-live hardening, legale, pagamenti one-off
