@@ -6,9 +6,14 @@
 // rimuoverlo chiude il vettore di code-generation-from-string senza rompere nulla.
 // 'self' per connect (le chiamate AI sono proxate dal server). blob:/data: per le
 // preview immagini caricate.
+// 'unsafe-eval' SOLO in sviluppo: il bundle di `next dev` avvolge ogni modulo in
+// eval() (webpack devtool eval-source-map) e senza il browser rifiuta di eseguirlo
+// -> boot client e HMR rotti (e la verifica visiva Playwright). In produzione Next
+// NON usa eval a runtime, quindi resta fuori (hardening).
+const isDev = process.env.NODE_ENV !== 'production'
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://drive.google.com https://lh3.googleusercontent.com https://images.unsplash.com",
   "font-src 'self' data:",
