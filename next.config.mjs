@@ -1,9 +1,14 @@
-// CSP pragmatica: blocca script esterni e framing, ma consente l'inline che
-// Next.js inietta (no nonce). 'self' per connect (le chiamate AI sono proxate
-// dal server, mai dal browser). blob:/data: per le preview immagini caricate.
+// CSP pragmatica. NB: 'unsafe-inline' su script-src resta NECESSARIO perché le
+// pagine sono per lo più statiche/prerenderizzate e il bootstrap inline di Next su
+// una pagina statica non può ricevere un nonce per-richiesta (il nonce forzerebbe
+// il rendering dinamico di tutta l'app — regressione SEO/perf). Abbiamo però tolto
+// 'unsafe-eval': il client Next in produzione non usa eval/new Function, quindi
+// rimuoverlo chiude il vettore di code-generation-from-string senza rompere nulla.
+// 'self' per connect (le chiamate AI sono proxate dal server). blob:/data: per le
+// preview immagini caricate.
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://drive.google.com https://lh3.googleusercontent.com https://images.unsplash.com",
   "font-src 'self' data:",
