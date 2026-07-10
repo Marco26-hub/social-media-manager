@@ -8,8 +8,9 @@ import { useRouter } from 'next/navigation'
 type AccessHint = {
   enabled: boolean
   mode: 'demo' | 'production-hint'
-  username: string
-  password: string
+  // Presenti SOLO in demo: in production-hint l'API non rivela le credenziali admin.
+  username?: string
+  password?: string
   note?: string
 }
 
@@ -32,8 +33,9 @@ export default function LoginPage() {
         const hint = hintRes.ok ? await hintRes.json() as AccessHint : null
         if (hint?.enabled) {
           setAccessHint(hint)
-          setEmail(hint.username)
-          setPassword(hint.password)
+          // In production-hint username/password sono assenti: non pre-compilare.
+          if (hint.username) setEmail(hint.username)
+          if (hint.password) setPassword(hint.password)
         }
         if (data.mode === 'demo') {
           setIsDemo(true)
@@ -57,7 +59,7 @@ export default function LoginPage() {
   }, [router])
 
   function fillAccessHint() {
-    if (!accessHint) return
+    if (!accessHint?.username || !accessHint?.password) return
     setEmail(accessHint.username)
     setPassword(accessHint.password)
     setError('')
@@ -124,13 +126,17 @@ export default function LoginPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm text-brand-700 font-medium">Accesso Admin</p>
-                  <p className="text-xs text-brand-600 mt-1">
-                    Utente: <span className="font-mono font-semibold">{accessHint?.username || 'admin'}</span>
-                    {' '}· Password: <span className="font-mono font-semibold">{accessHint?.password || '1234567'}</span>
-                  </p>
+                  {/* Credenziali mostrate SOLO in demo (non segrete). In production-hint
+                      l'API non le rivela: mostriamo solo la nota. */}
+                  {accessHint?.username && accessHint?.password && (
+                    <p className="text-xs text-brand-600 mt-1">
+                      Utente: <span className="font-mono font-semibold">{accessHint.username}</span>
+                      {' '}· Password: <span className="font-mono font-semibold">{accessHint.password}</span>
+                    </p>
+                  )}
                   {accessHint?.note && <p className="text-[11px] text-brand-500 mt-1">{accessHint.note}</p>}
                 </div>
-                {accessHint && (
+                {accessHint?.username && accessHint?.password && (
                   <button type="button" onClick={fillAccessHint} className="text-xs px-2 py-1 rounded-md bg-white text-brand-700 border border-brand-200 hover:bg-brand-100">
                     Compila
                   </button>

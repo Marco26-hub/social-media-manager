@@ -13,18 +13,28 @@ export async function GET() {
     return NextResponse.json({ enabled: false })
   }
 
-  // SICUREZZA: la password viene esposta SOLO in demo puro, dove il login
-  // accetta comunque qualunque credenziale (quindi non è un segreto reale).
-  // In production-hint mostriamo solo lo username, mai la password admin reale.
+  // Demo puro: le credenziali NON sono un segreto (con DATABASE_URL mancante il
+  // login accetta qualunque valore). Le esponiamo per l'auto-login/hint demo.
+  if (demo) {
+    return NextResponse.json({
+      enabled: true,
+      mode: 'demo',
+      username: process.env.ADMIN_LOGIN_USER || DEFAULT_DEMO_USER,
+      password: process.env.ADMIN_LOGIN_PASSWORD || DEFAULT_DEMO_PASSWORD,
+      login_url: '/login',
+      dashboard_url: '/dashboard/clienti',
+      note: 'Credenziali demo/setup. Con DATABASE_URL mancante il login accetta qualunque credenziale.',
+    })
+  }
+
+  // Production-hint (SHOW_LOGIN_HINT=true): NON riveliamo lo username admin reale
+  // a un visitatore anonimo — sarebbe info-disclosure che agevola il brute-force
+  // (metà credenziale regalata; il login è rate-limited ma non basta). Segnaliamo
+  // solo CHE l'accesso admin esiste: l'operatore conosce le proprie credenziali.
   return NextResponse.json({
     enabled: true,
-    mode: demo ? 'demo' : 'production-hint',
-    username: process.env.ADMIN_LOGIN_USER || DEFAULT_DEMO_USER,
-    ...(demo ? { password: process.env.ADMIN_LOGIN_PASSWORD || DEFAULT_DEMO_PASSWORD } : {}),
+    mode: 'production-hint',
     login_url: '/login',
-    dashboard_url: '/dashboard/clienti',
-    note: demo
-      ? 'Credenziali demo/setup. Con DATABASE_URL mancante il login accetta qualunque credenziale.'
-      : 'Hint login abilitato da SHOW_LOGIN_HINT=true. Usa la password admin configurata; disattiva prima della vendita.',
+    note: 'Accedi con le credenziali admin configurate (ADMIN_LOGIN_USER / ADMIN_LOGIN_PASSWORD). Disattiva SHOW_LOGIN_HINT prima della vendita.',
   })
 }
