@@ -17,7 +17,7 @@ export default function PortaleLayout({ children }: { children: React.ReactNode 
               <span>Area cliente</span>
             </span>
           </Link>
-          <Link href="/api/auth/signout?callbackUrl=/login" className={styles.exit}>
+          <Link href="/api/auth/signout?callbackUrl=/" className={styles.exit}>
             <LogOut size={16} />
             Esci
           </Link>

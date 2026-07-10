@@ -73,7 +73,8 @@ export default function Sidebar() {
 
   async function handleLogout() {
     await signOut({ redirect: false })
-    router.replace('/login')
+    // Dopo il logout torna alla landing pubblica (non alla pagina di login).
+    router.replace('/')
   }
 
   return (
