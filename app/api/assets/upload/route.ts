@@ -28,7 +28,12 @@ function safeFilename(name: string) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 48) || 'asset'
-  return `${base}-${randomUUID().slice(0, 8)}${ext}`
+  // Suffisso random ad alta entropia (80 bit): il nome file è parte della
+  // "capability URL" con cui /api/assets/file serve l'asset senza login (Blotato e
+  // i link preview pubblici devono poterlo leggere). Un suffisso corto sarebbe
+  // indovinabile; qui + il clienteId (UUID) rendono l'URL di fatto non enumerabile.
+  const token = randomUUID().replace(/-/g, '').slice(0, 20)
+  return `${base}-${token}${ext}`
 }
 
 export async function POST(request: Request) {

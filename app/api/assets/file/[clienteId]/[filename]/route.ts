@@ -5,6 +5,15 @@ import { isStorageConfigured, hasPublicStorageUrl, downloadFromStorage } from '@
 
 export const runtime = 'nodejs'
 
+// SICUREZZA — lettura PUBBLICA by-design (capability URL).
+// Questo proxy serve i media anche da bucket privato SENZA sessione, ed è
+// intenzionale: Blotato (publisher esterno) e i link preview/approvazione
+// condivisi col cliente (senza login) devono poter caricare l'immagine. Gli URL
+// firmati a scadenza non vanno bene: i post schedulati pubblicano giorni dopo, il
+// link scadrebbe. La protezione è la NON-enumerabilità dell'URL: clienteId (UUID)
+// + filename con suffisso random ad alta entropia (vedi safeFilename in
+// assets/upload). Non aggiungere auth qui senza rompere pubblicazione e preview.
+
 const MIME_BY_EXT: Record<string, string> = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
