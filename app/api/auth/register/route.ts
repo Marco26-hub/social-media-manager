@@ -47,6 +47,9 @@ export async function POST(request: Request) {
     if (!azienda) return NextResponse.json({ error: 'Azienda richiesta' }, { status: 400 })
     if (!EMAIL_RE.test(email)) return NextResponse.json({ error: 'Email non valida' }, { status: 400 })
     if (password.length < 8) return NextResponse.json({ error: 'La password deve avere almeno 8 caratteri' }, { status: 400 })
+    // Tetto lunghezza: bcrypt tronca a 72 byte (oltre non aggiunge sicurezza) e
+    // hashare input enormi è un vettore DoS CPU. 200 char è ampio per una passphrase.
+    if (password.length > 200) return NextResponse.json({ error: 'La password è troppo lunga (max 200 caratteri)' }, { status: 400 })
     if (pacchetto && !PACCHETTO_SLUGS.has(pacchetto)) return NextResponse.json({ error: 'Pacchetto non valido' }, { status: 400 })
 
     // Demo: risposta chiara 200 (nessuna registrazione reale).

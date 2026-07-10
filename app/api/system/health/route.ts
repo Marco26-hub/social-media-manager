@@ -1,11 +1,13 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 import { isDemo } from '@/lib/demo'
 import { dbReady, q } from '@/lib/db'
 import { isR2Configured } from '@/lib/storage'
+import { AUTH_SECRET } from '@/lib/auth-secret'
 
 export const dynamic = 'force-dynamic'
 
-const LATEST_REQUIRED_MIGRATION = '027_consulenze.sql'
+const LATEST_REQUIRED_MIGRATION = '028_profiles_status_default.sql'
 
 function hasEnv(name: string) {
   return Boolean(process.env[name]?.trim())
@@ -75,7 +77,7 @@ async function getDatabaseChecks(enabled: boolean) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const demo = isDemo()
   const hasDatabaseUrl = dbReady()
   const databaseChecks = await getDatabaseChecks(hasDatabaseUrl)
@@ -116,9 +118,33 @@ export async function GET() {
   // vogliamo che l'healthcheck Render bocci il deploy per una key opzionale.
   const criticalFailure = !demo && checks.databaseUrl && (!checks.dbConnection || !checks.profilesTable)
   const httpStatus = criticalFailure ? 503 : 200
+  const status = criticalFailure ? 'unhealthy' : (ready ? 'ready' : 'needs_setup')
+
+  // INFO-DISCLOSURE: il dettaglio infra (quali provider/segreti sono configurati,
+  // SHA del deploy, stato migrazioni, next_actions) è utile SOLO all'admin nella
+  // pagina /dashboard/setup. A un anonimo rivela la composizione dell'infrastruttura
+  // e cosa manca. Mostra il dettaglio solo ad admin (o in demo, dove è tutto finto);
+  // agli altri restituisci il minimo che login page e demo-client consumano
+  // (mode + checks.databaseUrl). Lo status HTTP 200/503 resta invariato: l'healthcheck
+  // Render guarda solo il codice, non il body. Il decode del token non deve mai far
+  // fallire l'endpoint (health deve rispondere anche a DB/JWT rotti).
+  let isAdmin = false
+  try {
+    const token = await getToken({ req: request, secret: AUTH_SECRET })
+    const ruolo = (token?.ruolo as string | undefined) || ''
+    isAdmin = ruolo === 'admin' || ruolo === 'super_admin'
+  } catch { /* health resta pubblico e robusto */ }
+
+  if (!demo && !isAdmin) {
+    return NextResponse.json({
+      status,
+      mode: 'production',
+      checks: { databaseUrl: hasDatabaseUrl },
+    }, { status: httpStatus })
+  }
 
   return NextResponse.json({
-    status: criticalFailure ? 'unhealthy' : (ready ? 'ready' : 'needs_setup'),
+    status,
     mode: demo ? 'demo' : 'production',
     version,
     database: 'neon-postgres',
