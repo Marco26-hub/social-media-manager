@@ -37,9 +37,11 @@ export async function verifyTurnstile(token: string | undefined | null, remoteIp
     const data = await res.json().catch(() => null) as { success?: boolean } | null
     return Boolean(data?.success)
   } catch (e) {
-    // Errore rete verso Cloudflare: non bloccare la registrazione per un problema
-    // transitorio del captcha (fail-open sul captcha, il rate-limit protegge comunque).
-    console.warn('[turnstile] verifica fallita (rete):', e instanceof Error ? e.message : String(e))
-    return true
+    // FAIL-CLOSED: se il captcha è configurato (siamo oltre il guard `!secret`) ma
+    // la verifica verso Cloudflare fallisce/scade, NON lasciar passare. Il fail-open
+    // permetteva a un bot di aggirare il captcha semplicemente inducendo/attendendo
+    // un errore di rete verso siteverify. Chi è legittimo può ritentare.
+    console.warn('[turnstile] verifica fallita (rete) → blocco:', e instanceof Error ? e.message : String(e))
+    return false
   }
 }
