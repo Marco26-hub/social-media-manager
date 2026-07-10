@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { apiError } from '@/lib/api-error'
 import { dbReady, q } from '@/lib/db'
-import { requireAuth, requireClienteId } from '@/lib/auth-utils'
+import { requireAuth, requireAdmin, requireClienteId } from '@/lib/auth-utils'
 import { isDemo } from '@/lib/demo'
 import { demoSettings } from '@/lib/demo-data'
 
@@ -40,7 +40,10 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   try {
-    await requireAuth()
+    // Scrittura settings = configurazione agenzia (dry_run, generation_mode, key…):
+    // riservata all'admin, non al cliente. La UI vive già in /dashboard (admin-only),
+    // qui chiudiamo anche l'API per difesa in profondità.
+    await requireAdmin()
     if (isDemo() || !dbReady()) return NextResponse.json({ ok: true, demo: true })
     const cid = await requireClienteId()
     const { id, valore } = await request.json()
@@ -61,7 +64,7 @@ export async function PATCH(request: Request) {
 // Serve per impostazioni non seed-ate a priori (key per-cliente).
 export async function POST(request: Request) {
   try {
-    await requireAuth()
+    await requireAdmin() // scrittura settings riservata all'admin (vedi PATCH)
     const { chiave, valore, descrizione } = await request.json()
     if (!chiave || typeof chiave !== 'string') return NextResponse.json({ error: 'chiave richiesta' }, { status: 400 })
     // Whitelist di valori per le chiavi enum (evita stati non validi che il motore
