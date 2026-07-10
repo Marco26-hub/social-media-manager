@@ -17,6 +17,24 @@ export type MediaValidationResult = {
 const ALLOWED_IMAGE = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']
 const ALLOWED_VIDEO = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']
 
+// Estrae l'IPv4 incapsulato in un IPv6 IPv4-mapped. SICUREZZA: WHATWG new URL()
+// normalizza i literali mapped alla forma HEX (es. [::ffff:127.0.0.1] diventa
+// [::ffff:7f00:1]), quindi il vecchio match solo-dotted lasciava passare
+// loopback/RFC1918/metadata via http://[::ffff:127.0.0.1]/. Decodifichiamo sia la
+// forma dotted (::ffff:a.b.c.d) sia quella hex (::ffff:HHHH:HHHH), con eventuale
+// gruppo 0: intermedio (::ffff:0:...). Ritorna null se non è un indirizzo mapped.
+function embeddedMappedV4(addr: string): string | null {
+  const dotted = addr.match(/::ffff:(?:0:)?(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/)
+  if (dotted) return dotted[1]
+  const hex = addr.match(/::ffff:(?:0:)?([0-9a-f]{1,4}):([0-9a-f]{1,4})$/)
+  if (hex) {
+    const hi = parseInt(hex[1], 16)
+    const lo = parseInt(hex[2], 16)
+    return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`
+  }
+  return null
+}
+
 // Controlla se un IP (v4 o v6) è privato/loopback/link-local/metadata.
 function isPrivateIp(ip: string): boolean {
   const addr = ip.toLowerCase().replace(/^\[|\]$/g, '').replace(/%.*$/, '') // strip brackets + zone id
@@ -24,9 +42,8 @@ function isPrivateIp(ip: string): boolean {
   if (addr === '::1' || addr === '::') return true
   if (addr.startsWith('fe80:')) return true          // link-local
   if (addr.startsWith('fc') || addr.startsWith('fd')) return true // unique-local fc00::/7
-  // IPv4-mapped IPv6 (::ffff:10.0.0.1) → estrai la parte v4
-  const mapped = addr.match(/::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/)
-  const v4 = mapped ? mapped[1] : addr
+  // IPv4-mapped IPv6 (dotted o hex) → estrai la parte v4 e valutala sotto.
+  const v4 = embeddedMappedV4(addr) || addr
   const m = v4.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
   if (m) {
     const [a, b] = [Number(m[1]), Number(m[2])]
