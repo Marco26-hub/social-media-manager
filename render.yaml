@@ -20,6 +20,12 @@ services:
         sync: false
       - key: AUTH_SECRET
         generateValue: true
+      # Bearer per gli endpoint schedulati /api/agents/* (generazione AUTOMATICA),
+      # chiamati da uno scheduler esterno gratuito (es. cron-job.org). generateValue:
+      # Render lo crea; copialo nel cron esterno come header
+      # "Authorization: Bearer <valore>". Senza, gli endpoint agente sono chiusi (503).
+      - key: CRON_SECRET
+        generateValue: true
       - key: OPENROUTER_API_KEY
         sync: false
       - key: ANTHROPIC_API_KEY
