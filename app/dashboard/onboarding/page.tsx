@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { isDemo } from '@/lib/demo'
 import { useGeneration } from '@/components/GenerationProvider'
+import { readApiError } from '@/lib/ai-client'
 
 const STEP_LABELS = ['Cliente', 'Brand', 'Prodotti', 'Contenuti', 'Fine']
 
@@ -169,7 +170,9 @@ export default function OnboardingPage() {
   // Step 4 → Generate first content
   async function generaContenuti() {
     setLoading(true)
+    setErrore(null)
     let count = 0
+    const falliti: string[] = []
     for (const canale of canaliScelti) {
       for (let i = 0; i < 2; i++) {
         try {
@@ -190,12 +193,32 @@ export default function OnboardingPage() {
               body: JSON.stringify(body),
             })
             if (res.ok) count++
+            else falliti.push(`${canale}: ${await readApiError(res, `HTTP ${res.status}`)}`)
           }
-        } catch {}
+        } catch (e) {
+          // Niente più catch silenzioso: registra il fallimento di rete.
+          falliti.push(`${canale}: ${(e as Error).message || 'errore di rete'}`)
+        }
       }
     }
     setContenutiGenerati(count)
     setLoading(false)
+
+    // Zero contenuti generati: NON avanzare fingendo successo (prima lo step 5
+    // mostrava "0 contenuti generati" come se fosse andato tutto bene). Mostra
+    // l'errore e resta sullo step 4 per riprovare / cambiare modello AI.
+    if (count === 0) {
+      setErrore(
+        falliti.length
+          ? `Generazione contenuti non riuscita. ${falliti.slice(0, 3).join(' · ')}${falliti.length > 3 ? ` (+${falliti.length - 3} altri)` : ''}. Riprova o cambia modello AI.`
+          : 'Nessun contenuto generato. Riprova o cambia modello AI.',
+      )
+      return
+    }
+    // Successo parziale: avanza ma segnala i fallimenti (niente silenzio).
+    if (falliti.length) {
+      setErrore(`Generati ${count} contenuti; alcuni non riusciti: ${falliti.slice(0, 3).join(' · ')}${falliti.length > 3 ? ` (+${falliti.length - 3} altri)` : ''}.`)
+    }
     setStep(5)
   }
 
