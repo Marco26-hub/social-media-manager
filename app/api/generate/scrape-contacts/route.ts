@@ -2,23 +2,12 @@ import { NextResponse } from 'next/server'
 import { apiError } from '@/lib/api-error'
 import { callAI, extractJSON } from '@/lib/ai'
 import { requireAuth } from '@/lib/auth-utils'
+import { isBlockedHost } from '@/lib/media-validate'
 
-// Anti-SSRF: stessa logica di lib/media-validate.ts
-function isPrivateHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '')
-  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host.endsWith('.local')) return true
-  if (host === '::1' || host === '::' || host.startsWith('fe80:') || host.startsWith('fc') || host.startsWith('fd')) return true
-  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
-  if (m) {
-    const [a, b] = [Number(m[1]), Number(m[2])]
-    if (a === 0 || a === 10 || a === 127) return true
-    if (a === 169 && b === 254) return true
-    if (a === 172 && b >= 16 && b <= 31) return true
-    if (a === 192 && b === 168) return true
-    if (a === 100 && b >= 64 && b <= 127) return true
-  }
-  return false
-}
+// Anti-SSRF: usa isBlockedHost (lib/media-validate) che, oltre al check lessicale,
+// RISOLVE il DNS e blocca se un qualsiasi IP risolto è privato/loopback/metadata.
+// Difende dal DNS rebinding (evil.com → 127.0.0.1) che il solo check lessicale
+// lasciava passare.
 
 const SKIP_SOCIAL = new Set([
   'share', 'sharer', 'login', 'home', 'explore', 'intent', 'hashtag',
@@ -152,7 +141,7 @@ export async function POST(request: Request) {
     if (!['http:', 'https:'].includes(parsed.protocol)) {
       return NextResponse.json({ error: 'Solo HTTP/HTTPS consentiti' }, { status: 400 })
     }
-    if (isPrivateHost(parsed.hostname)) {
+    if (await isBlockedHost(parsed.hostname)) {
       return NextResponse.json({ error: 'Host non raggiungibile (rete privata)' }, { status: 400 })
     }
 
@@ -184,7 +173,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: 'Troppi redirect' }, { status: 502 })
         }
         const next = new URL(loc, currentUrl)
-        if (!['http:', 'https:'].includes(next.protocol) || isPrivateHost(next.hostname)) {
+        if (!['http:', 'https:'].includes(next.protocol) || await isBlockedHost(next.hostname)) {
           clearTimeout(timer)
           return NextResponse.json({ error: 'Redirect verso host non consentito' }, { status: 400 })
         }

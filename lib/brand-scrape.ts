@@ -3,6 +3,8 @@
 // del sito, non sull'URL nudo (che prima la portava a inventare settore, tono,
 // target, colori...). Protezione SSRF: host privati/loopback/link-local bloccati.
 
+import { isBlockedHost } from '@/lib/media-validate'
+
 export type ScrapedSite = {
   ok: boolean
   url: string
@@ -16,24 +18,6 @@ export type ScrapedSite = {
   textSample: string
   bytesFetched: number
   error?: string
-}
-
-// SSRF: blocca host privati/loopback/link-local e l'endpoint metadata cloud.
-// Uguale a lib/media-validate.ts + scrape-contacts: stessi range per coerenza.
-function isPrivateHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '')
-  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host.endsWith('.local')) return true
-  if (host === '::1' || host === '::' || host.startsWith('fe80:') || host.startsWith('fc') || host.startsWith('fd')) return true
-  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
-  if (m) {
-    const [a, b] = [Number(m[1]), Number(m[2])]
-    if (a === 0 || a === 10 || a === 127) return true
-    if (a === 169 && b === 254) return true
-    if (a === 172 && b >= 16 && b <= 31) return true
-    if (a === 192 && b === 168) return true
-    if (a === 100 && b >= 64 && b <= 127) return true
-  }
-  return false
 }
 
 function decodeEntities(s: string): string {
@@ -132,7 +116,7 @@ export async function fetchSiteContent(rawUrl: string, opts: { timeoutMs?: numbe
   if (!['http:', 'https:'].includes(parsed.protocol)) {
     return { ...base, error: `Protocollo non supportato: ${parsed.protocol}` }
   }
-  if (isPrivateHost(parsed.hostname)) {
+  if (await isBlockedHost(parsed.hostname)) {
     return { ...base, error: 'Host non consentito (rete privata/locale)' }
   }
 
@@ -159,7 +143,7 @@ export async function fetchSiteContent(rawUrl: string, opts: { timeoutMs?: numbe
         const loc = res.headers.get('location')
         if (!loc) break
         const next = new URL(loc, currentUrl)
-        if (!['http:', 'https:'].includes(next.protocol) || isPrivateHost(next.hostname)) {
+        if (!['http:', 'https:'].includes(next.protocol) || await isBlockedHost(next.hostname)) {
           return { res, error: 'Redirect verso host non consentito', finalUrl: currentUrl }
         }
         currentUrl = next.href
