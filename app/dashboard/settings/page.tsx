@@ -27,6 +27,7 @@ export default function SettingsPage() {
   const [savedBlotato, setSavedBlotato] = useState(false)
   const [genMode, setGenMode] = useState<'MANUAL' | 'AUTO'>('MANUAL')
   const [savingGen, setSavingGen] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
   const [runningAuto, setRunningAuto] = useState(false)
   const [autoResult, setAutoResult] = useState<string | null>(null)
   const demo = isDemo()
@@ -56,6 +57,7 @@ export default function SettingsPage() {
   async function saveGenMode(next: 'MANUAL' | 'AUTO') {
     const prev = genMode
     setSavingGen(true)
+    setGenError(null)
     setGenMode(next) // aggiornamento ottimistico
     try {
       if (!demo) {
@@ -64,10 +66,15 @@ export default function SettingsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chiave: 'generation_mode', valore: next, descrizione: 'MANUAL = generi tu a mano; AUTO = generazione automatica (bozze da approvare)' }),
         })
-        if (!res.ok) setGenMode(prev) // rollback su errore
+        if (!res.ok) {
+          // Niente rollback muto: rimetti il valore e DÌ perché non è stato salvato.
+          setGenMode(prev)
+          setGenError(res.status === 401 || res.status === 403 ? 'Salvataggio riservato all’admin.' : 'Salvataggio non riuscito. Riprova.')
+        }
       }
     } catch {
       setGenMode(prev)
+      setGenError('Salvataggio non riuscito (rete). Riprova.')
     } finally {
       setSavingGen(false)
     }
@@ -216,6 +223,7 @@ export default function SettingsPage() {
                 {savingGen && <RefreshCw className="w-4 h-4 text-gray-400 animate-spin" />}
               </div>
             </div>
+            {genError && <p className="text-xs text-red-600 mt-2">{genError}</p>}
             {/* Trigger manuale admin: genera SUBITO per tutti i clienti in AUTO,
                 senza scheduler esterno/CRON_SECRET (usa la sessione admin). */}
             <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-3 flex-wrap">

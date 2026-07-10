@@ -47,6 +47,12 @@ export async function POST(request: Request) {
     }
 
     const totale = risultati.reduce((n, r) => n + r.generati, 0)
+    const conErrori = risultati.filter(r => r.errori.length > 0)
+    // Fallimento reale: c'erano clienti in AUTO ma NON è stata generata alcuna bozza.
+    // Niente successo finto (HTTP 200 ok:true cieco): torna 502 + notifica errore,
+    // così lo scheduler esterno segna il run come fallito e l'agenzia se ne accorge.
+    const failedRun = clienti.length > 0 && totale === 0
+
     if (totale > 0) {
       // Avvisa l'agenzia che ci sono nuove bozze da approvare (best-effort).
       await notifyAgency({
@@ -55,9 +61,23 @@ export async function POST(request: Request) {
         canale: `${clienti.length} clienti AUTO`,
         formato: 'DA_APPROVARE',
       }).catch(() => {})
+    } else if (failedRun) {
+      await notifyAgency({
+        type: 'errore',
+        id_contenuto: 'generazione automatica',
+        canale: `${clienti.length} clienti AUTO`,
+        errore: conErrori[0]?.errori[0] || 'nessun contenuto generato',
+      }).catch(() => {})
     }
 
-    return NextResponse.json({ ok: true, clienti_auto: clienti.length, generati: totale, dettaglio: risultati })
+    return NextResponse.json({
+      ok: !failedRun,
+      clienti_auto: clienti.length,
+      generati: totale,
+      falliti: conErrori.length,
+      error: failedRun ? `Nessuna bozza generata su ${clienti.length} clienti AUTO. Primo errore: ${conErrori[0]?.errori[0] || 'sconosciuto'}` : undefined,
+      dettaglio: risultati,
+    }, { status: failedRun ? 502 : 200 })
   } catch (e) {
     return apiError(e)
   }

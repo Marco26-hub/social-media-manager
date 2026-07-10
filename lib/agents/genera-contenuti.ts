@@ -72,7 +72,13 @@ export async function generaContenutiPerCliente(
   const count = Math.max(1, Math.min(opts.count ?? 2, 5))
   const canali = opts.canali?.length ? opts.canali : ['instagram']
   const { cliente, brand, prodotti } = await loadContext(clienteId)
-  const brandObj: Row = brand || {}
+  // Anti-contenuto-generico (coerente con la linea anti-allucinazione del prodotto):
+  // senza un brand configurato NON generiamo — produrremmo copy off-brand. Skippa e
+  // segnala esplicitamente invece di fingere un risultato con fallback generici.
+  if (!brand) {
+    return { clienteId, generati: 0, errori: ['Brand non configurato: generazione automatica saltata per evitare contenuti generici. Completa il brand del cliente.'] }
+  }
+  const brandObj: Row = brand
   const cliObj: Row = cliente || {}
   const settore = brandField(brandObj, 'settore', brandField(cliObj, 'settore', 'generico'))
   const nomeBrand = brandField(brandObj, 'nome', brandField(cliObj, 'nome', 'il brand'))
