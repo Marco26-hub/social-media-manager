@@ -11,6 +11,12 @@ import { isDemo } from '@/lib/demo'
 // Key gestite con card dedicata (secret mascherato), escluse dalla lista generica.
 const SECRET_KEYS = new Set(['blotato_api_key'])
 
+// Modalità generazione dal set di settings del cliente. Assente = MANUAL (fail-safe:
+// nessuna generazione automatica finché l'admin non attiva esplicitamente AUTO).
+function genModeFrom(arr: Setting[]): 'MANUAL' | 'AUTO' {
+  return (arr.find(s => s.chiave === 'generation_mode')?.valore || '').toUpperCase() === 'AUTO' ? 'AUTO' : 'MANUAL'
+}
+
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Setting[]>([])
   const [loading, setLoading]   = useState(true)
@@ -19,11 +25,14 @@ export default function SettingsPage() {
   const [blotatoKey, setBlotatoKey] = useState('')
   const [savingBlotato, setSavingBlotato] = useState(false)
   const [savedBlotato, setSavedBlotato] = useState(false)
+  const [genMode, setGenMode] = useState<'MANUAL' | 'AUTO'>('MANUAL')
+  const [savingGen, setSavingGen] = useState(false)
   const demo = isDemo()
 
   useEffect(() => {
     if (demo) {
       setSettings(demoSettings)
+      setGenMode(genModeFrom(demoSettings))
       setLoading(false)
       return
     }
@@ -34,10 +43,33 @@ export default function SettingsPage() {
         setSettings(arr)
         const bk = arr.find(s => s.chiave === 'blotato_api_key')?.valore || ''
         setBlotatoKey(bk)
+        setGenMode(genModeFrom(arr))
         setLoading(false)
       })
       .catch(() => setLoading(false))
   }, [demo])
+
+  // MANUALE (default) ⇄ AUTOMATICO, attivato dall'admin per questo cliente. Upsert
+  // per chiave: crea la riga generation_mode la prima volta (non è seed-ata).
+  async function saveGenMode(next: 'MANUAL' | 'AUTO') {
+    const prev = genMode
+    setSavingGen(true)
+    setGenMode(next) // aggiornamento ottimistico
+    try {
+      if (!demo) {
+        const res = await fetch('/api/data/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chiave: 'generation_mode', valore: next, descrizione: 'MANUAL = generi tu a mano; AUTO = generazione automatica (bozze da approvare)' }),
+        })
+        if (!res.ok) setGenMode(prev) // rollback su errore
+      }
+    } catch {
+      setGenMode(prev)
+    } finally {
+      setSavingGen(false)
+    }
+  }
 
   async function saveBlotatoKey() {
     setSavingBlotato(true)
@@ -125,6 +157,35 @@ export default function SettingsPage() {
               <button onClick={saveBlotatoKey} disabled={savingBlotato} className="btn-primary py-2 px-4 justify-center whitespace-nowrap">
                 {savingBlotato ? <RefreshCw className="w-4 h-4 animate-spin" /> : savedBlotato ? <><Check className="w-4 h-4" /> Salvata</> : 'Salva key'}
               </button>
+            </div>
+          </div>
+
+          {/* Generazione contenuti: MANUALE (default) / AUTOMATICO (attivato dall'admin
+              per questo cliente). In AUTO un job schedulato genererà bozze DA_APPROVARE. */}
+          <div className="card p-4 flex items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-gray-900">Generazione contenuti</p>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${genMode === 'AUTO' ? 'bg-brand-100 text-brand-700' : 'bg-gray-100 text-gray-600'}`}>
+                  {genMode === 'AUTO' ? 'AUTO' : 'MANUALE'}
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {genMode === 'AUTO'
+                  ? 'Automatico: l’agente genera bozze DA APPROVARE per questo cliente. Approvi comunque prima di pubblicare.'
+                  : 'Manuale: generi tu con il pulsante Genera. Nessuna generazione automatica.'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => saveGenMode(genMode === 'AUTO' ? 'MANUAL' : 'AUTO')}
+                disabled={savingGen}
+                aria-label="Attiva o disattiva la generazione automatica"
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${genMode === 'AUTO' ? 'bg-brand-600' : 'bg-gray-200'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${genMode === 'AUTO' ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+              {savingGen && <RefreshCw className="w-4 h-4 text-gray-400 animate-spin" />}
             </div>
           </div>
 

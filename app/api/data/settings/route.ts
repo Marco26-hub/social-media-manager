@@ -64,6 +64,11 @@ export async function POST(request: Request) {
     await requireAuth()
     const { chiave, valore, descrizione } = await request.json()
     if (!chiave || typeof chiave !== 'string') return NextResponse.json({ error: 'chiave richiesta' }, { status: 400 })
+    // Whitelist di valori per le chiavi enum (evita stati non validi che il motore
+    // AUTO poi non saprebbe interpretare).
+    if (chiave === 'generation_mode' && !['MANUAL', 'AUTO'].includes(String(valore ?? '').toUpperCase())) {
+      return NextResponse.json({ error: 'generation_mode deve essere MANUAL o AUTO' }, { status: 400 })
+    }
     // Stesso guard del PATCH: non salvare il placeholder mascherato al posto del segreto.
     if (typeof valore === 'string' && valore.includes('••••')) {
       return NextResponse.json({ ok: true, unchanged: true, note: 'Valore mascherato: nessuna modifica applicata.' })
