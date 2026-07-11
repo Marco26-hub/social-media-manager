@@ -1,0 +1,51 @@
+# Scheduler automatico degli agenti (gratis, dentro GitHub — nessun servizio esterno).
+# Chiama gli endpoint /api/agents/* con l'header Authorization: Bearer CRON_SECRET.
+#
+# SETUP (una volta):
+# 1) Su GitHub: Settings → Secrets and variables → Actions → New repository secret
+#    Nome: CRON_SECRET   Valore: lo stesso segreto impostato su Render.
+# 2) Su Render: Environment → aggiungi CRON_SECRET con lo stesso valore.
+# 3) (Opz.) Variables → APP_BASE_URL se il dominio cambia (default sotto).
+# Trigger: automatico ogni lunedì mattina + manuale (tab Actions → Run workflow).
+name: Agenti automatici
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'   # ogni lunedì 07:00 UTC (~09:00 in Italia)
+  workflow_dispatch: {}
+
+# Un solo run alla volta (evita sovrapposizioni se un run è lento).
+concurrency:
+  group: agenti-cron
+  cancel-in-progress: false
+
+jobs:
+  run-agents:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: ${{ vars.APP_BASE_URL || 'https://social-media-manager-zte4.onrender.com' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Verifica CRON_SECRET
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET mancante. Aggiungilo in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+      - name: Esegui gli agenti (solo clienti AUTO + agenti abilitati)
+        run: |
+          fail=0
+          for path in genera-contenuti seo-audit ads report competitor-analysis; do
+            echo "▶ $path"
+            code=$(curl -s -o /tmp/out.json -w '%{http_code}' --max-time 300 -X POST \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              "$BASE_URL/api/agents/$path" || echo 000)
+            echo "  HTTP $code — $(head -c 400 /tmp/out.json)"
+            # 200 = ok, 502 = nessun output (nessun cliente AUTO o tutti falliti): entrambi
+            # sono "il run è partito". Altri codici = problema di rete/auth/deploy.
+            if [ "$code" != "200" ] && [ "$code" != "502" ]; then
+              echo "::warning::$path ha risposto $code"
+              fail=1
+            fi
+          done
+          exit $fail
