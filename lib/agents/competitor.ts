@@ -74,6 +74,7 @@ export async function eseguiCompetitorPerCliente(
         geminiKey: opts.aiKeys?.geminiKey,
         opencodeKey: opts.aiKeys?.opencodeKey,
         maxTokens: 4000,
+        meta: { clienteId, tipo: 'competitor', agentName: 'competitor' },
       })
       const { data } = extractJSONChecked(raw)
       const parsed = (data as Row) || {}

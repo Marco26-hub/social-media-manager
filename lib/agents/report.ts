@@ -104,6 +104,7 @@ export async function eseguiReportPerCliente(
     geminiKey: opts.aiKeys?.geminiKey,
     opencodeKey: opts.aiKeys?.opencodeKey,
     maxTokens: 3000,
+    meta: { clienteId, tipo: 'report', agentName: 'report' },
   })
   const { data } = extractJSONChecked(raw)
   const parsed = (data as Row) || {}

@@ -138,6 +138,7 @@ export async function eseguiAdsPerCliente(
         geminiKey: opts.aiKeys?.geminiKey,
         opencodeKey: opts.aiKeys?.opencodeKey,
         maxTokens,
+        meta: { clienteId, tipo: 'ads', agentName: 'ads' },
       })
       const { data } = extractJSONChecked(raw)
       const parsed = (data as Row) || {}

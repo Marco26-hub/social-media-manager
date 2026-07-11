@@ -1,4 +1,4 @@
-import { logTokenUsage } from '@/lib/token-usage'
+import { logTokenUsage, tokenMetaStore, type TokenMeta } from '@/lib/token-usage'
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
@@ -243,7 +243,14 @@ async function tryOllamaModel(
   }
 }
 
-export async function callAI(params: {
+export async function callAI(params: Parameters<typeof callAIImpl>[0]): Promise<string> {
+  // Avvolge l'esecuzione nel contesto meta: i log token (in profondità nelle call*)
+  // sanno a chi/cosa attribuire i token senza threading di parametri. Senza meta =
+  // contesto vuoto = logging globale (fase 1), comportamento invariato.
+  return tokenMetaStore.run(params.meta ?? {}, () => callAIImpl(params))
+}
+
+async function callAIImpl(params: {
   model: string
   systemPrompt?: string
   userPrompt: string
@@ -254,6 +261,7 @@ export async function callAI(params: {
   silentFallback?: boolean
   images?: string[]
   timeoutMs?: number
+  meta?: TokenMeta
 }): Promise<string> {
   const { model, systemPrompt, userPrompt, maxTokens = 4000, silentFallback = true, images = [], timeoutMs = 30000 } = params
   // SICUREZZA: le chiavi BYO arrivano dal client (localStorage). Accettale solo se

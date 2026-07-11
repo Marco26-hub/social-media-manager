@@ -193,6 +193,7 @@ export async function generaContenutiPerCliente(
         geminiKey: opts.aiKeys?.geminiKey,
         opencodeKey: opts.aiKeys?.opencodeKey,
         maxTokens,
+        meta: { clienteId, tipo: 'content', agentName: 'contenuti' },
       })
       const { data, truncated } = extractJSONChecked(raw)
       const parsed = (data as Row) || {}

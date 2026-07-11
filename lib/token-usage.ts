@@ -1,8 +1,14 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { dbReady, q } from '@/lib/db'
 import { isDemo } from '@/lib/demo'
 
 export type TokenUsage = { prompt_tokens?: unknown; completion_tokens?: unknown; total_tokens?: unknown }
 export type TokenMeta = { clienteId?: string | null; tipo?: string | null; agentName?: string | null }
+
+// Contesto propagato (senza threading di parametri) da callAI fino a logTokenUsage,
+// che è chiamato in profondità nelle call*. callAI avvolge la sua esecuzione con il
+// meta; le call* loggano senza saperne nulla e l'attribuzione arriva da qui.
+export const tokenMetaStore = new AsyncLocalStorage<TokenMeta>()
 
 function toInt(v: unknown): number {
   const x = typeof v === 'number' ? v : Number(v)
@@ -25,10 +31,12 @@ export async function logTokenUsage(entry: {
     const completion = toInt(u.completion_tokens)
     const total = toInt(u.total_tokens) || (prompt + completion)
     if (!prompt && !completion && !total) return
+    // meta esplicito, altrimenti dal contesto AsyncLocalStorage impostato da callAI.
+    const meta = entry.meta ?? tokenMetaStore.getStore()
     await q(
       `INSERT INTO token_usage (cliente_id, tipo, agent_name, provider, model, prompt_tokens, completion_tokens, total_tokens)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [entry.meta?.clienteId || null, entry.meta?.tipo || null, entry.meta?.agentName || null,
+      [meta?.clienteId || null, meta?.tipo || null, meta?.agentName || null,
         entry.provider, entry.model, prompt, completion, total],
     )
   } catch {

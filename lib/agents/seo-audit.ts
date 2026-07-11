@@ -138,6 +138,7 @@ export async function eseguiSeoAuditPerCliente(
     geminiKey: opts.aiKeys?.geminiKey,
     opencodeKey: opts.aiKeys?.opencodeKey,
     maxTokens: 5000,
+    meta: { clienteId, tipo: 'seo_audit', agentName: 'seo' },
   })
   const { data } = extractJSONChecked(raw)
   const parsed = (data as Row) || {}
