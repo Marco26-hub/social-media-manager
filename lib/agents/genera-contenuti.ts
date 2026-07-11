@@ -6,8 +6,8 @@ import {
   DIVERSITY_STANDARDS, FUNNEL_STANDARDS, pickAngle, proSystemPrompt,
 } from '@/lib/prompt-standards'
 import {
-  buildExtendedOutputSchema, getPlanQualityCap, getQualityTokenBudget,
-  pickText, pickJson, jsonbParam,
+  buildExtendedOutputSchema, resolveContentQuality, getQualityTokenBudget,
+  buildQualityContext, pickText, pickJson, jsonbParam,
 } from '@/lib/content-quality'
 import { insertCalendarioRow } from '@/lib/calendario-insert'
 
@@ -106,7 +106,8 @@ function buildSystemPrompt(settore: string, nomeBrand: string, quality: string):
 
 function buildUserPrompt(p: {
   canale: string; formato: string; nomeBrand: string; settore: string; tono: string
-  tema: string; prodotto?: Row; brandDesc: string; angle: string; extendedSchema: string
+  tema: string; prodotto?: Row; brandDesc: string; angle: string
+  qualityContext: string; extendedSchema: string
 }): string {
   const spec = FORMAT_SPECS[p.formato] || FORMAT_SPECS.post
   const prodInfo = p.prodotto
@@ -124,6 +125,8 @@ ANGOLO CREATIVO OBBLIGATORIO (usalo come attacco/struttura): ${p.angle}
 STRUTTURA DEL ${p.formato.toUpperCase()}:
 ${spec.struttura}
 
+${p.qualityContext}
+
 Output SOLO JSON valido. Includi i campi del formato:
 { ${spec.schema} }
 E FONDI nel medesimo JSON questo schema operativo (campi strategici obbligatori):
@@ -136,7 +139,7 @@ ${p.extendedSchema}`
 // prima di pubblicare. NON pubblica nulla.
 export async function generaContenutiPerCliente(
   clienteId: string,
-  opts: { count?: number; canali?: string[]; aiKeys?: AiKeys } = {},
+  opts: { count?: number; canali?: string[]; quality?: string; aiKeys?: AiKeys } = {},
 ): Promise<AgentResult> {
   const count = Math.max(1, Math.min(opts.count ?? 2, 5))
   const { cliente, brand, prodotti, canali: canaliCollegati } = await loadContext(clienteId)
@@ -161,7 +164,10 @@ export async function generaContenutiPerCliente(
   const brandDesc = brandField(brandObj, 'descrizione', brandField(brandObj, 'brand_promise', ''))
   // Qualità PREMIUM per piano: i clienti con piano alto ottengono lo schema/token
   // di qualità superiore (stesso capping della generazione manuale).
-  const quality = getPlanQualityCap(cliObj.piano)
+  // 3 livelli di ragionamento (soft | medium | high) come il manuale: livello
+  // esplicito opzionale MA cappato dal piano del cliente (resolveContentQuality);
+  // senza esplicito = livello del piano. Determina profondità schema + budget token.
+  const quality = resolveContentQuality({ requestedQuality: opts.quality, piano: cliObj.piano })
   const maxTokens = getQualityTokenBudget(quality)
   const extendedSchema = buildExtendedOutputSchema(quality)
 
@@ -176,7 +182,8 @@ export async function generaContenutiPerCliente(
     const tema = (prodotto?.nome_prodotto as string) || nomeBrand
     try {
       const systemPrompt = buildSystemPrompt(settore, nomeBrand, quality)
-      const userPrompt = buildUserPrompt({ canale, formato, nomeBrand, settore, tono, tema, prodotto, brandDesc, angle: pickAngle(), extendedSchema })
+      const qualityContext = buildQualityContext({ quality, canale, formato })
+      const userPrompt = buildUserPrompt({ canale, formato, nomeBrand, settore, tono, tema, prodotto, brandDesc, angle: pickAngle(), qualityContext, extendedSchema })
       const raw = await callAI({
         model: opts.aiKeys?.model || 'gemini-2.5-flash',
         systemPrompt,
