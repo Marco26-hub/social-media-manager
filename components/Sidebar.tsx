@@ -21,6 +21,7 @@ const SECTIONS: NavSection[] = [
       { href: '/dashboard',            label: 'Dashboard',  icon: LayoutDashboard },
       { href: '/dashboard/il-mio-piano', label: 'Il mio piano', icon: CreditCard },
       { href: '/dashboard/calendario', label: 'Calendario', icon: Calendar },
+      { href: '/dashboard/agenti',     label: 'Agenti (auto)', icon: Zap, adminOnly: true },
     ],
   },
   {

@@ -5,6 +5,7 @@ import { cronDenied } from '@/lib/cron-auth'
 import { requireAdmin } from '@/lib/auth-utils'
 import { generaContenutiPerCliente, type AgentResult } from '@/lib/agents/genera-contenuti'
 import { notifyAgency } from '@/lib/notifications'
+import { isAgentEnabled } from '@/lib/agent-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,10 @@ export async function POST(request: Request) {
 
   try {
     if (!dbReady()) return NextResponse.json({ error: 'DB non pronto' }, { status: 503 })
+    // Gate globale: l'agente è disabilitato dal pannello → non fare nulla (esito ok).
+    if (!(await isAgentEnabled('content'))) {
+      return NextResponse.json({ ok: true, disabled: true, message: 'Agente contenuti disabilitato dal pannello.' })
+    }
 
     // Clienti attivi che hanno ESPLICITAMENTE attivato la generazione automatica.
     const rows = await q(

@@ -5,6 +5,7 @@ import { cronDenied } from '@/lib/cron-auth'
 import { requireAdmin } from '@/lib/auth-utils'
 import { eseguiCompetitorPerCliente, type CompetitorResult } from '@/lib/agents/competitor'
 import { notifyAgency } from '@/lib/notifications'
+import { isAgentEnabled } from '@/lib/agent-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +24,9 @@ export async function POST(request: Request) {
 
   try {
     if (!dbReady()) return NextResponse.json({ error: 'DB non pronto' }, { status: 503 })
+    if (!(await isAgentEnabled('competitor'))) {
+      return NextResponse.json({ ok: true, disabled: true, message: 'Agente Competitor disabilitato dal pannello.' })
+    }
 
     const rows = await q(
       `SELECT s.cliente_id

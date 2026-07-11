@@ -5,6 +5,7 @@ import { cronDenied } from '@/lib/cron-auth'
 import { requireAdmin } from '@/lib/auth-utils'
 import { eseguiAdsPerCliente, type AdsResult } from '@/lib/agents/ads'
 import { notifyAgency } from '@/lib/notifications'
+import { isAgentEnabled } from '@/lib/agent-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +25,9 @@ export async function POST(request: Request) {
 
   try {
     if (!dbReady()) return NextResponse.json({ error: 'DB non pronto' }, { status: 503 })
+    if (!(await isAgentEnabled('ads'))) {
+      return NextResponse.json({ ok: true, disabled: true, message: 'Agente Ads disabilitato dal pannello.' })
+    }
 
     const rows = await q(
       `SELECT s.cliente_id
